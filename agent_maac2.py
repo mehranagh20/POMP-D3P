@@ -17,6 +17,7 @@ import math
 from functorch import jacrev, jacfwd
 import metrics
 from utility import get_lrschedule
+from math import sqrt
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,7 @@ class Agent(object):
             args=args,
         )
 
+        self.args = args
         self.gamma = args.gamma
         self.gamma_tensor = torch.FloatTensor([args.gamma]).to(self.device)
         self.tau = args.tau
@@ -157,6 +159,25 @@ class Agent(object):
             self.device
         )
         hard_update(self.critic_target, self.critic)
+
+        # thompson sampling part
+        self.max_num_iters = args.policy_ga_num_iters
+        self.end_increase_epoch = args.policy_ga_end_increase_epoch
+
+        if self.args.epsilon > 0:
+            self.noisy_critics = []
+            self.noisy_critic_optims = []
+            self.noisy_critic_lrschedulers = []
+            self.chosen_ciritc_ind = 0
+            for i in range(args.n_critic):
+                noisy_critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(device=self.device)
+                self.noisy_critics.append(noisy_critic)
+
+                noisy_critic_optim = Adam(noisy_critic.parameters(), lr=args.lr)
+                self.noisy_critic_optims.append(noisy_critic_optim)
+
+                scheduler = get_lrschedule(args, noisy_critic_optim)
+                self.noisy_critic_lrschedulers.append(scheduler)
 
         if self.policy_type == "Gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
@@ -224,6 +245,7 @@ class Agent(object):
         self.alpha_lrscheduler.step()
         self.policy_lrscheduler.step()
         self.model_ensemble.model.ensemble_model.lr_scheduler.step()
+        self.noisy_critic_lrschedulers[self.chosen_ciritc_ind].step()
 
     def get_lr(self):
         return {
@@ -232,8 +254,54 @@ class Agent(object):
             "policy_lr": f"{self.policy_lrscheduler.get_last_lr()[0]:.5e}",
             "model_lr": f"{self.model_ensemble.model.ensemble_model.lr_scheduler.get_last_lr()[0]:.5e}",
         }
+    
+    def sample_best_action(self, state, evaluate, ddp, ddp_iters, init_action, epoch=None):
+        prev = state
+        state = torch.FloatTensor(state).to(self.device)
+        if len(state.shape) == 1:
+            state = state.unsqueeze(0)
 
-    def select_action(self, state, evaluate=False, ddp=False, ddp_iters=None, init_action=None):
+        with torch.no_grad():
+            if not ddp:
+                actions, _, _ = self.policy.sample(state)
+            else:
+                actions = self.select_action_ddp(
+                    prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
+                ).unsqueeze(0)
+
+        num_iters = 0
+        if epoch is not None:
+            num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
+            num_iters = min(num_iters, self.max_num_iters)
+
+        if num_iters == 0:
+            return actions.detach().cpu().numpy()[0]
+
+        actions = self.policy.unscale_action(actions)
+
+        action = torch.tensor(actions, requires_grad=True, device=self.device)
+        optim = torch.optim.Adam([action], lr=self.args.policy_ga_lr)
+
+        noisy_critic = self.noisy_critics[self.chosen_ciritc_ind]
+        for i in range(num_iters):
+            optim.zero_grad()
+            scaled_action = self.policy.scale_action(action)
+            q1, q2 = noisy_critic(state, scaled_action)
+            loss = -(q1 + q2).squeeze().mean()
+            loss.backward()
+            optim.step()
+        # set end loss
+        action = action.detach()
+        action = self.policy.scale_action(action)
+
+
+        if action.shape[0] == 1:
+            return action.cpu().numpy()[0]
+        return action.cpu().numpy()
+
+    def select_action(self, state, evaluate=False, ddp=False, ddp_iters=None, init_action=None, noisy=False, epoch=1):
+        if noisy:
+            return self.sample_best_action(state, evaluate, ddp, ddp_iters, init_action, epoch=epoch)
         if ddp:
             try:
                 if not self.gbp:
@@ -1002,6 +1070,22 @@ class Agent(object):
         self.policy_optim.zero_grad()
         policy_loss.backward()
         self.policy_optim.step()
+
+        # thompson sampling part
+        if self.args.epsilon > 0:
+            self.chosen_ciritc_ind = torch.randint(0, len(self.noisy_critics), (1,)).item()
+            noisy_critic = self.noisy_critics[self.chosen_ciritc_ind]
+            noisy_critic_optim = self.noisy_critic_optims[self.chosen_ciritc_ind]
+
+            qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
+            qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
+            qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
+            noisy_critic_optim.zero_grad()
+            (qf1_noisy_loss+qf2_noisy_loss).backward()
+
+            for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
+                param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
+            noisy_critic_optim.step()
 
         if self.automatic_entropy_tuning:
             alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()

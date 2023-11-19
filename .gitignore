@@ -8,3 +8,8 @@ __pycache__
 runs/
 *.patch
 draw_cc/
+experiments/
+test.sh
+wandb/
+
+

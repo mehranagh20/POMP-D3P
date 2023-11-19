@@ -235,3 +235,12 @@ class GaussianPolicy(nn.Module):
         self.action_space_high = self.action_space_high.to(device)
         self.action_space_low = self.action_space_low.to(device)
         return super(GaussianPolicy, self).to(device)
+    
+    def unscale_action(self, action):
+        action = (action - self.action_bias) / self.action_scale
+        return torch.atanh(action)
+
+
+    def scale_action(self, action):
+        action = torch.tanh(action)
+        return action * self.action_scale + self.action_bias

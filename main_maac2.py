@@ -12,6 +12,7 @@ import torch.nn as nn
 import gym
 from torch.utils.tensorboard import SummaryWriter
 import datetime
+
 from nets import Simple_model
 from buffer import ReplayMemory
 from utility import xu2t
@@ -19,6 +20,7 @@ from agent_maac2 import Agent
 import logging
 import sys
 import json
+import wandb
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -33,6 +35,15 @@ import env
 
 parser = argparse.ArgumentParser(description="PyTorch agent")
 #### model type
+parser.add_argument("--project_name", default="pomp")
+
+parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
+parser.add_argument('--n_critic', type=int, default=1, metavar='G', help='0 for policy sample, 1 for policy mean, 2 for random')
+parser.add_argument('--policy_ga_num_iters', type=int, default=10, metavar='A', help='model checkpoint frequency')
+parser.add_argument('--policy_ga_end_increase_epoch', type=int, default=100, metavar='A', help='model checkpoint frequency')
+parser.add_argument('--policy_ga_lr', type=float, default=0.1, metavar='A', help='model checkpoint frequency')
+
+parser.add_argument("--wandb_name", default="walker")
 parser.add_argument(
     "--model_type", default="Naive", help="model Type: Naive | TR | Q |TRQ (default: Naive)"
 )
@@ -299,6 +310,12 @@ torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 os.environ["PYTHONHASHSEED"] = str(args.seed)
 
+wandb.init(
+    project=args.project_name,
+    name=args.wandb_name,
+    config=args,
+)
+
 
 ##############################
 # Environment
@@ -436,19 +453,23 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
+        if total_numsteps % epoch_length == 0:
+            epoch_step += 1
+
         if args.exploration_init and (args.start_steps > total_numsteps):
             action = env.action_space.sample()
         else:
+            noisy = np.random.rand() < args.epsilon
             with aggregate("exploration"):
                 action = agent.select_action(
                     state,
                     evaluate=False,
                     ddp=flag_model_trained and total_numsteps >= args.ddp_steps and not args.no_ddp,
                     init_action=env.action_space.sample() if args.random_init else None,
+                    noisy=noisy,
+                    epoch=epoch_step,
                 )  ##  evaluate=False is better
 
-        if total_numsteps % epoch_length == 0:
-            epoch_step += 1
 
         next_state, reward, done, _ = env.step(action)
         episode_steps += 1
@@ -571,7 +592,7 @@ for i_episode in itertools.count(1):
                 with aggregate("inference"):
                     avg_reward = 0.0
                     avg_steps = 0.0
-                    episodes = 10
+                    episodes = 1
                     for _ in range(episodes):
                         episode_reward_e = 0
                         episode_steps_e = 0
@@ -598,6 +619,7 @@ for i_episode in itertools.count(1):
                             total_numsteps, avg_reward, avg_steps
                         )
                     )
+                    wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps)
             try:
                 logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
                 reset_meters("exploration")
@@ -615,7 +637,7 @@ for i_episode in itertools.count(1):
 
             avg_reward = 0.0
             avg_steps = 0.0
-            episodes = 10
+            episodes = 1
             for _ in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0
@@ -638,6 +660,7 @@ for i_episode in itertools.count(1):
                     total_numsteps, avg_reward, avg_steps
                 )
             )
+            wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps)
             logger.info(json.dumps(agent.get_lr()))
             file_name = f"{args.save_prefix}_{args.env_name}_{args.batch_size_pmp}_{args.update_policy_times}_{args.lr}_{args.seed}_{args.updates_per_step}_{args.H}"
             if args.save_result:
@@ -666,6 +689,7 @@ for i_episode in itertools.count(1):
     # if num_episodes > args.num_epis:
     #     break
 env.close()
+wandb.finish()
 
 
 ########## end ############################

@@ -10,7 +10,6 @@ torch.set_default_tensor_type(torch.cuda.FloatTensor)
 from typing import Tuple
 import math
 import numpy as np
-import matplotlib.pyplot as plt
 import gzip
 import itertools
 import logging

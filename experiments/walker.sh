@@ -22,7 +22,7 @@ for param in "${temp[@]}"; do
                 --rollout_max_length 1 --max_train_repeat_per_step 10 --min_pool_size 5000 \
                 --near_n 5 --seed $seed --H 4 \
                 --save_prefix $name --policy_direct_bp \
-                --ddp_max_delta 20 --ddp_clipk 0.025 --ddp_delta_decay_legacy --project_name $project_name --wandb_name $name > $save_log_file 2>&1
+                --ddp_max_delta 20 --ddp_clipk 0.025 --ddp_delta_decay_legacy --project_name $project_name --wandb_name $name
             job=$((job+1))
             pids[$job]=$!
             names[$job]=$name

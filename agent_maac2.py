@@ -245,7 +245,8 @@ class Agent(object):
         self.alpha_lrscheduler.step()
         self.policy_lrscheduler.step()
         self.model_ensemble.model.ensemble_model.lr_scheduler.step()
-        self.noisy_critic_lrschedulers[self.chosen_ciritc_ind].step()
+        if self.args.epsilon > 0:
+            self.noisy_critic_lrschedulers[self.chosen_ciritc_ind].step()
 
     def get_lr(self):
         return {

@@ -43,6 +43,7 @@ parser.add_argument('--n_critic', type=int, default=1, metavar='G', help='0 for 
 parser.add_argument('--policy_ga_num_iters', type=int, default=10, metavar='A', help='model checkpoint frequency')
 parser.add_argument('--policy_ga_end_increase_epoch', type=int, default=100, metavar='A', help='model checkpoint frequency')
 parser.add_argument('--policy_ga_lr', type=float, default=0.1, metavar='A', help='model checkpoint frequency')
+parser.add_argument('--setting', type=str, default='')
 
 parser.add_argument("--wandb_name", default="walker")
 parser.add_argument(

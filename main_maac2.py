@@ -38,6 +38,7 @@ parser = argparse.ArgumentParser(description="PyTorch agent")
 parser.add_argument("--project_name", default="pomp")
 
 parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
+parser.add_argument('--epsilon_decay_end', type=int, default=0, metavar='G')
 parser.add_argument('--n_critic', type=int, default=1, metavar='G', help='0 for policy sample, 1 for policy mean, 2 for random')
 parser.add_argument('--policy_ga_num_iters', type=int, default=10, metavar='A', help='model checkpoint frequency')
 parser.add_argument('--policy_ga_end_increase_epoch', type=int, default=100, metavar='A', help='model checkpoint frequency')
@@ -459,7 +460,11 @@ for i_episode in itertools.count(1):
         if args.exploration_init and (args.start_steps > total_numsteps):
             action = env.action_space.sample()
         else:
-            noisy = np.random.rand() < args.epsilon
+            eps = args.epsilon
+            if args.epsilon_decay_end != 0:
+                eps = eps - total_numsteps * (eps / args.epsilon_decay_end)
+                
+            noisy = np.random.rand() < eps
             with aggregate("exploration"):
                 action = agent.select_action(
                     state,

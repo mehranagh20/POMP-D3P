@@ -38,6 +38,7 @@ parser = argparse.ArgumentParser(description="PyTorch agent")
 parser.add_argument("--project_name", default="pomp")
 
 parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
+parser.add_argument('--noisy_coef', type=float, default=1.0, metavar='G')
 parser.add_argument('--epsilon_decay_end', type=int, default=0, metavar='G')
 parser.add_argument('--n_critic', type=int, default=1, metavar='G', help='0 for policy sample, 1 for policy mean, 2 for random')
 parser.add_argument('--policy_ga_num_iters', type=int, default=10, metavar='A', help='model checkpoint frequency')
@@ -497,6 +498,7 @@ for i_episode in itertools.count(1):
             and args.efficient
         ):
             for i in range(1):
+                logger.info('updating')
                 # for i in range(args.updates_per_step):
                 # Update q
                 (

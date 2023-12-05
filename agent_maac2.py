@@ -1072,21 +1072,6 @@ class Agent(object):
         policy_loss.backward()
         self.policy_optim.step()
 
-        # thompson sampling part
-        if self.args.epsilon > 0:
-            self.chosen_ciritc_ind = torch.randint(0, len(self.noisy_critics), (1,)).item()
-            noisy_critic = self.noisy_critics[self.chosen_ciritc_ind]
-            noisy_critic_optim = self.noisy_critic_optims[self.chosen_ciritc_ind]
-
-            qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
-            qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
-            qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
-            noisy_critic_optim.zero_grad()
-            (qf1_noisy_loss+qf2_noisy_loss).backward()
-
-            for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
-                param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
-            noisy_critic_optim.step()
 
         if self.automatic_entropy_tuning:
             alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
@@ -1218,6 +1203,22 @@ class Agent(object):
         # self.policy_optim.zero_grad()
         # policy_loss.backward()
         # self.policy_optim.step()
+
+        # thompson sampling part
+        if self.args.epsilon > 0:
+            self.chosen_ciritc_ind = torch.randint(0, len(self.noisy_critics), (1,)).item()
+            noisy_critic = self.noisy_critics[self.chosen_ciritc_ind]
+            noisy_critic_optim = self.noisy_critic_optims[self.chosen_ciritc_ind]
+
+            qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
+            qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
+            qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
+            noisy_critic_optim.zero_grad()
+            (qf1_noisy_loss+qf2_noisy_loss).backward()
+
+            for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
+                param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
+            noisy_critic_optim.step()
 
         if self.automatic_entropy_tuning:
             alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()

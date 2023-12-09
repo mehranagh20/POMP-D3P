@@ -266,9 +266,13 @@ class Agent(object):
             if not ddp:
                 actions, _, _ = self.policy.sample(state)
             else:
-                actions = self.select_action_ddp(
-                    prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
-                ).unsqueeze(0)
+                try:
+                    actions = self.select_action_ddp(
+                        prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
+                    ).unsqueeze(0)
+                except:
+                    logger.info("Catch exception ddp, fallback to SAC.")
+                    actions, _, _ = self.policy.sample(state)
 
         num_iters = 0
         if epoch is not None:

@@ -168,7 +168,7 @@ class Agent(object):
             self.noisy_critics = []
             self.noisy_critic_optims = []
             self.noisy_critic_lrschedulers = []
-            self.chosen_ciritc_ind = 0
+            self.updated_critics = []
             for i in range(args.n_critic):
                 noisy_critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(device=self.device)
                 self.noisy_critics.append(noisy_critic)
@@ -246,7 +246,8 @@ class Agent(object):
         self.policy_lrscheduler.step()
         self.model_ensemble.model.ensemble_model.lr_scheduler.step()
         if self.args.epsilon > 0:
-            self.noisy_critic_lrschedulers[self.chosen_ciritc_ind].step()
+            for i in self.updated_critics:
+                self.noisy_critic_lrschedulers[i].step()
 
     def get_lr(self):
         return {
@@ -287,7 +288,8 @@ class Agent(object):
         action = torch.tensor(actions, requires_grad=True, device=self.device)
         optim = torch.optim.Adam([action], lr=self.args.policy_ga_lr)
 
-        noisy_critic = self.noisy_critics[self.chosen_ciritc_ind]
+        chosen_critic_ind = np.random.choice(self.updated_critics)
+        noisy_critic = self.noisy_critics[chosen_critic_ind]
         for i in range(num_iters):
             optim.zero_grad()
             scaled_action = self.policy.scale_action(action)
@@ -298,7 +300,6 @@ class Agent(object):
         # set end loss
         action = action.detach()
         action = self.policy.scale_action(action)
-
 
         if action.shape[0] == 1:
             return action.cpu().numpy()[0]
@@ -1210,19 +1211,22 @@ class Agent(object):
 
         # thompson sampling part
         if self.args.epsilon > 0:
-            self.chosen_ciritc_ind = torch.randint(0, len(self.noisy_critics), (1,)).item()
-            noisy_critic = self.noisy_critics[self.chosen_ciritc_ind]
-            noisy_critic_optim = self.noisy_critic_optims[self.chosen_ciritc_ind]
+            self.updated_critics = [i for i in range(len(self.noisy_critics))]
+            if self.args.noisy_critic_efficient:
+                self.updated_critics = [torch.randint(0, len(self.noisy_critics), (1,)).item()]
+            for chosen_critic_ind in self.updated_critics:
+                noisy_critic = self.noisy_critics[chosen_critic_ind]
+                noisy_critic_optim = self.noisy_critic_optims[chosen_critic_ind]
 
-            qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
-            qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
-            qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
-            noisy_critic_optim.zero_grad()
-            (qf1_noisy_loss+qf2_noisy_loss).backward()
+                qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
+                qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
+                qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
+                noisy_critic_optim.zero_grad()
+                (qf1_noisy_loss+qf2_noisy_loss).backward()
 
-            for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
-                param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
-            noisy_critic_optim.step()
+                for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
+                    param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
+                noisy_critic_optim.step()
 
         if self.automatic_entropy_tuning:
             alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()

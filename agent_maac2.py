@@ -1211,9 +1211,9 @@ class Agent(object):
 
         # thompson sampling part
         if self.args.epsilon > 0:
-            self.updated_critics = [i for i in range(len(self.noisy_critics))]
-            if self.args.noisy_critic_efficient:
-                self.updated_critics = [torch.randint(0, len(self.noisy_critics), (1,)).item()]
+            self.updated_critics = [torch.randint(0, len(self.noisy_critics), (1,)).item()]
+            if not self.args.noisy_critic_efficient:
+                self.updated_critics = [i for i in range(len(self.noisy_critics))]
             for chosen_critic_ind in self.updated_critics:
                 noisy_critic = self.noisy_critics[chosen_critic_ind]
                 noisy_critic_optim = self.noisy_critic_optims[chosen_critic_ind]

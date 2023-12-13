@@ -305,6 +305,39 @@ logging.getLogger().addHandler(handler)
 logger.info("python {}".format(" ".join(sys.argv)))
 logger.info(args)
 
+def add_metric(metric_dict, args):
+    log_dir = './results'
+    folder = os.path.join(log_dir, args.save_prefix)
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    file_name = os.path.join(log_dir, args.save_prefix, 'metrics.json')
+    config_name = os.path.join(log_dir, args.save_prefix, 'config.json')
+    wandb_id = wandb.run.id
+    name = args.save_prefix
+    project = args.project_name
+
+    data = {}
+    if os.path.exists(file_name):
+        with open(file_name) as f:
+            data = json.load(f)
+    
+    data['wandb_id'] = wandb_id
+    data['name'] = name
+    data['project'] = project
+    data['setting'] = args.setting
+    if 'metrics' not in data:
+        data['metrics'] = []
+    data['metrics'].append(metric_dict)
+
+    with open(file_name, 'w') as f:
+        json.dump(data, f, indent=4) 
+    
+    # save args to config file
+    with open(config_name, 'w') as f:
+        json.dump(vars(args), f, indent=4)
+
+
+
 if args.cuda:
     torch.backends.cudnn.deterministic = True
     torch.cuda.manual_seed
@@ -669,7 +702,10 @@ for i_episode in itertools.count(1):
                     total_numsteps, avg_reward, avg_steps
                 )
             )
-            wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps)
+            metric = {"reward": avg_reward, "steps": avg_steps}
+            wandb.log(metric, step=total_numsteps)
+            add_metric(metric, args)
+            
             logger.info(json.dumps(agent.get_lr()))
             file_name = f"{args.save_prefix}_{args.env_name}_{args.batch_size_pmp}_{args.update_policy_times}_{args.lr}_{args.seed}_{args.updates_per_step}_{args.H}"
             if args.save_result:

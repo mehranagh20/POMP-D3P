@@ -307,11 +307,12 @@ logger.info(args)
 
 def add_metric(metric_dict, args):
     log_dir = './results'
-    folder = os.path.join(log_dir, args.save_prefix)
+    proj_name = args.project_name
+    folder = os.path.join(log_dir, proj_name, args.save_prefix)
     if not os.path.exists(folder):
         os.makedirs(folder)
-    file_name = os.path.join(log_dir, args.save_prefix, 'metrics.json')
-    config_name = os.path.join(log_dir, args.save_prefix, 'config.json')
+    file_name = os.path.join(log_dir, proj_name, args.save_prefix, 'metrics.json')
+    config_name = os.path.join(log_dir, proj_name, args.save_prefix, 'config.json')
     wandb_id = wandb.run.id
     name = args.save_prefix
     project = args.project_name

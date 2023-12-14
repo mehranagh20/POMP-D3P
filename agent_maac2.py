@@ -288,6 +288,8 @@ class Agent(object):
         action = torch.tensor(actions, requires_grad=True, device=self.device)
         optim = torch.optim.Adam([action], lr=self.args.policy_ga_lr)
 
+        if self.updated_critics == []:
+            self.updated_critics = [i for i in range(self.args.n_critic)]
         chosen_critic_ind = np.random.choice(self.updated_critics)
         noisy_critic = self.noisy_critics[chosen_critic_ind]
         for i in range(num_iters):

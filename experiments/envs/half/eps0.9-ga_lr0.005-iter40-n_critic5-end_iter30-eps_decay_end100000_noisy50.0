@@ -2,22 +2,21 @@
 
 job=0
 
-# setting: eps0.8-ga_lr0.01-iter100-n_critic50-end_iter30-eps_decay_end100000_noisy1.0
+# eps0.9-ga_lr0.005-iter40-n_critic5-end_iter50-eps_decay_end100000_noisy50.0
 
-eps=0.0
-iter=100
-n_critic=50
-end_iter=30
-ga_lr=0.01
+eps=0.9
+iter=40
+n_critic=5
+end_iter=50
+ga_lr=0.005
 eps_decay_end=100000
-noisy_coef=1.0
+noisy_coef=50
 efficent=1
 
-# for seed in 1 2 3 4 5 6 7 8; do
-for seed in 5; do
+for seed in 1 2 3 4 5 6 7 8; do
     name=eps${eps}-ga_lr${ga_lr}-iter${iter}-n_critic${n_critic}-end_iter${end_iter}-eps_decay_end${eps_decay_end}-noisy${noisy_coef}-eff${efficent}-seed${seed}
-    setting=baseline
-    project_name=text
+    setting=eps${eps}-ga_lr${ga_lr}-iter${iter}-n_critic${n_critic}-end_iter${end_iter}-eps_decay_end${eps_decay_end}-noisy${noisy_coef}-eff${efficent}
+    project_name=half-best
     save_dir=/home/mehran/sfu/projects/rl/POMP-D3P/results/$project_name
     mkdir -p ${save_dir}/${name}
     save_log_file=${save_dir}/${name}/out.log

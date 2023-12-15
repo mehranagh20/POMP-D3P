@@ -14,7 +14,7 @@ noisy_coef=1.0
 efficent=1
 
 # for seed in 1 2 3 4 6 7 8; do
-for seed in 5; do
+for seed in 7; do
     name=eps${eps}-ga_lr${ga_lr}-iter${iter}-n_critic${n_critic}-end_iter${end_iter}-eps_decay_end${eps_decay_end}-noisy${noisy_coef}-eff${efficent}-seed${seed}
     setting=eps${eps}-ga_lr${ga_lr}-iter${iter}-n_critic${n_critic}-end_iter${end_iter}-eps_decay_end${eps_decay_end}-noisy${noisy_coef}-eff${efficent}
     project_name=half-best

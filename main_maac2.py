@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-import env
+# import env
 
 parser = argparse.ArgumentParser(description="PyTorch agent")
 #### model type

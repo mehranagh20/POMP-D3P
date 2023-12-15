@@ -358,6 +358,7 @@ wandb.init(
     project=args.project_name,
     name=args.wandb_name,
     config=args,
+    dir=args.save_dir,
 )
 
 

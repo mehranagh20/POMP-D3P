@@ -46,6 +46,7 @@ parser.add_argument('--policy_ga_end_increase_epoch', type=int, default=100, met
 parser.add_argument('--policy_ga_lr', type=float, default=0.1, metavar='A', help='model checkpoint frequency')
 parser.add_argument('--setting', type=str, default='')
 parser.add_argument('--noisy_critic_efficient', type=int, default=1)
+parser.add_argument('--save_dir', type=str, default='.')
 
 parser.add_argument("--wandb_name", default="walker")
 parser.add_argument(
@@ -281,17 +282,22 @@ parser.add_argument("--gbp", action="store_true", default=False)
 parser.add_argument("--random-init", action="store_true", default=False)
 args = parser.parse_args()
 # torch.save(args,'args.file')
-if not os.path.exists("./results"):
-    os.makedirs("./results")
-if not os.path.exists("./models"):
-    os.makedirs("./models")
+results_dir = f"{args.save_dir}/results"
+models_dir = f"{args.save_dir}/models"
+runs_dir = f"{args.save_dir}/runs"
+if not os.path.exists(results_dir):
+    os.makedirs(results_dir)
+if not os.path.exists(models_dir):
+    os.makedirs(models_dir)
 # for tb
-if not os.path.exists("./runs"):
-    os.makedirs("./runs")
+if not os.path.exists(runs_dir):
+    os.makedirs(runs_dir)
 #############################
 
 # Tesnorboard
-runs_dir = "runs/{}_{}_s{}".format(
+save_prefix = args.save_prefix
+runs_dir = "{}/runs/{}_{}_s{}".format(
+    args.save_dir,
     args.save_prefix,
     args.env_name,
     args.seed,
@@ -306,7 +312,7 @@ logger.info("python {}".format(" ".join(sys.argv)))
 logger.info(args)
 
 def add_metric(metric_dict, args):
-    log_dir = './results'
+    log_dir = f'{args.save_dir}/results'
     proj_name = args.project_name
     folder = os.path.join(log_dir, proj_name, args.save_prefix)
     if not os.path.exists(folder):
@@ -710,7 +716,7 @@ for i_episode in itertools.count(1):
             logger.info(json.dumps(agent.get_lr()))
             file_name = f"{args.save_prefix}_{args.env_name}_{args.batch_size_pmp}_{args.update_policy_times}_{args.lr}_{args.seed}_{args.updates_per_step}_{args.H}"
             if args.save_result:
-                np.save(f"./results/{file_name}", reward_save)
+                np.save(f"{args.save_dir}/results/{file_name}", reward_save)
             writer.add_scalar("avg_reward_and_step_number/test", avg_reward, total_numsteps)
 
         # save model

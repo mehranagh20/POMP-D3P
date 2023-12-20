@@ -1113,6 +1113,7 @@ class Agent(object):
         use_decay=False,
         weight_decay=0.1,
         real_ratio=0.05,
+        epsilon=None
     ):
         # Sample a batch from memory   update Q network
         batch_real = int(
@@ -1212,7 +1213,8 @@ class Agent(object):
         # self.policy_optim.step()
 
         # thompson sampling part
-        if self.args.epsilon > 0:
+        # epsilon decays to zero. No need to keep updating noisy critics if epsilon is zero
+        if self.args.epsilon > 0 and (epsilon is None or epsilon > 1e-6):
             self.updated_critics = [torch.randint(0, len(self.noisy_critics), (1,)).item()]
             if not self.args.noisy_critic_efficient:
                 self.updated_critics = [i for i in range(len(self.noisy_critics))]

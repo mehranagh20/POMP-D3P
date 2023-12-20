@@ -619,7 +619,7 @@ for i_episode in itertools.count(1):
                         ff,
                         gg,
                     ) = agent.update_parameters_q(
-                        memory, memory_fake, args.batch_size, updates_q, real_ratio=args.real_ratio
+                        memory, memory_fake, args.batch_size, updates_q, real_ratio=args.real_ratio, epsilon=eps
                     )
                 # critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters_like_sac(memory, args.batch_size, updates_q)
                 updates_q += 1

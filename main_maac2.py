@@ -49,6 +49,7 @@ parser.add_argument('--noisy_critic_efficient', type=int, default=1)
 parser.add_argument('--save_dir', type=str, default='.')
 
 parser.add_argument("--wandb_name", default="walker")
+parser.add_argument("--wandb_mode", default="online")
 parser.add_argument(
     "--model_type", default="Naive", help="model Type: Naive | TR | Q |TRQ (default: Naive)"
 )
@@ -359,6 +360,7 @@ wandb.init(
     name=args.wandb_name,
     config=args,
     dir=args.save_dir,
+    mode=args.wandb_mode,
 )
 
 

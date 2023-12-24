@@ -28,7 +28,7 @@ for seed in 1 2 3 4 5 6 7 8; do
                 --model_type Naive --weight_grad 10 \
                 --batch_size_pmp 256 --lr 3e-4 \
                 --update_policy_times 10 --updates_per_step 10 \
-                --save_dir ${save_dir} \
+                --save_dir ${save_dir}/$name \
                 --rollout_max_length 1 --max_train_repeat_per_step 10 --min_pool_size 5000 \
                 --near_n 5 --seed $seed --H 3 \
                 --save_prefix $name --policy_direct_bp \

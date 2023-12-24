@@ -671,7 +671,7 @@ for i_episode in itertools.count(1):
                             total_numsteps, avg_reward, avg_steps
                         )
                     )
-                    wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps)
+                    wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps//args.see_freq)
             try:
                 logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
                 reset_meters("exploration")
@@ -713,7 +713,7 @@ for i_episode in itertools.count(1):
                 )
             )
             metric = {"reward": avg_reward, "steps": avg_steps}
-            wandb.log(metric, step=total_numsteps)
+            wandb.log(metric, step=total_numsteps//args.see_freq)
             add_metric(metric, args)
             
             logger.info(json.dumps(agent.get_lr()))

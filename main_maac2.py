@@ -21,6 +21,7 @@ import logging
 import sys
 import json
 import wandb
+from copy import deepcopy
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -37,6 +38,8 @@ parser = argparse.ArgumentParser(description="PyTorch agent")
 #### model type
 parser.add_argument("--project_name", default="pomp")
 
+parser.add_argument('--teacher_coef', type=float, default=0.4, metavar='G')
+parser.add_argument('--teacher_consistency_iter', type=int, default=5, metavar='G')
 parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
 parser.add_argument('--noisy_coef', type=float, default=1.0, metavar='G')
 parser.add_argument('--epsilon_decay_end', type=int, default=0, metavar='G')
@@ -492,12 +495,21 @@ flag_model_trained = False  ##### use true model do not need to train
 epoch_step = -1
 epoch_length = args.epoch_length
 rollout_length = 1
+
+best_q = None
+best_p = None
+best_rew = -1e6
+prev_rewards = []
+
 for i_episode in itertools.count(1):
 
     episode_reward = 0
     episode_steps = 0
     done = False
     state = env.reset()
+
+    avg_q = None
+    avg_p = None
 
     while not done:
         if total_numsteps % epoch_length == 0:
@@ -531,8 +543,54 @@ for i_episode in itertools.count(1):
         # mask = float(not done)
         memory.push(state, action, reward, next_state, mask, done)
         # memory_fake.push(state, action, reward, next_state, mask, done) # run this line in invertpendulum
+
+        if avg_q == None:
+            # make a copy of the Q network without requiring gradients
+            avg_q = copy.deepcopy(agent.critic)
+            avg_p = copy.deepcopy(agent.policy)
+        else:
+            for p1, p2 in zip(avg_q.parameters(), agent.critic.parameters()):
+                p1.data.add_(p2.data)
+            for p1, p2 in zip(avg_p.parameters(), agent.policy.parameters()):
+                p1.data.add_(p2.data)
+
         if done:
+            # divide parmeters by the number of steps in the episode
+            for p in avg_q.parameters():
+                p.data.div_(episode_steps)
+            for p in avg_p.parameters():
+                p.data.div_(episode_steps)
+            
+            if episode_reward > best_rew:
+                best_rew = episode_reward
+                best_q = copy.deepcopy(avg_q)
+                best_p = copy.deepcopy(avg_p)
+
+            avg_p = None
+            avg_q = None
+
+            prev_rewards.append(episode_reward)
+            if len(prev_rewards) > args.teacher_consistency_iter:
+                prev_rewards.pop(0)
+
+            if len(prev_rewards) >= args.teacher_consistency_iter:
+                recover = True
+                for i in range(args.teacher_consistency_iter):
+                    if prev_rewards[i] > best_rew * (1 - args.teacher_coef):
+                        recover = False
+                        break
+                if recover:
+                    print(f'recovering: {best_rew} to {prev_rewards}')
+                    # do ema update to make the policy and q closer to the best
+                    for p1, p2 in zip(agent.critic.parameters(), best_q.parameters()):
+                        p1.data.mul_(0.9).add_(p2.data, alpha=0.1)
+                    for p1, p2 in zip(agent.policy.parameters(), best_p.parameters()):
+                        p1.data.mul_(0.9).add_(p2.data, alpha=0.1)
+                    
+            
+
             num_episodes += 1
+
         state = next_state
 
         #### train q and policy before model learned

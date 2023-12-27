@@ -329,8 +329,9 @@ def add_metric(metric_dict, args):
 
     data = {}
     if os.path.exists(file_name):
-        with open(file_name) as f:
-            data = json.load(f)
+        with open(file_name, 'r') as f:
+            # data = json.load(f)
+            data = json.loads(f.read())
     
     data['wandb_id'] = wandb_id
     data['name'] = name

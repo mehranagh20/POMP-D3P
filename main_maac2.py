@@ -10,7 +10,7 @@ import random
 import math
 import torch.nn as nn
 import gym
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 import datetime
 
 from nets import Simple_model
@@ -303,7 +303,9 @@ runs_dir = "{}/runs/{}_{}_s{}".format(
     args.env_name,
     args.seed,
 )
-writer = SummaryWriter(runs_dir)
+if not os.path.exists(runs_dir):
+    os.makedirs(runs_dir)
+# writer = SummaryWriter(runs_dir)
 handler = logging.FileHandler(filename=os.path.join(runs_dir, "run.log"))
 formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 handler.setFormatter(formatter)
@@ -595,8 +597,8 @@ for i_episode in itertools.count(1):
                     )
                     # rollout_for_update_q(agent, memory, memory_fake, 1, 256)
                 num_updates_pmp += args.update_policy_times
-                writer.add_scalar("loss/policy", loss_policy, total_numsteps)
-                writer.add_scalar("dQds_norm", dQds_norm, total_numsteps)
+                # writer.add_scalar("loss/policy", loss_policy, total_numsteps)
+                # writer.add_scalar("dQds_norm", dQds_norm, total_numsteps)
 
         # if len(memory) >= args.batch_size and total_numsteps>args.start_steps and len(memory) >= args.min_pool_size: #### 1 hopper h2 h4, invertedpen, walker
         # if len(memory) >= args.batch_size and len(memory) >= args.min_pool_size: #### 2 hoper h3 seed 0,1,2;walker2d h4 0,1,2 w01/05/1;
@@ -626,15 +628,15 @@ for i_episode in itertools.count(1):
                     )
                 # critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters_like_sac(memory, args.batch_size, updates_q)
                 updates_q += 1
-            writer.add_scalar("loss/critic_1", critic_1_loss, total_numsteps)
-            writer.add_scalar("loss/critic_2", critic_2_loss, total_numsteps)
-            writer.add_scalar("loss/policy", policy_loss, total_numsteps)
-            writer.add_scalar("loss/entropy_loss", ent_loss, total_numsteps)
-            writer.add_scalar("entropy_temprature/alpha", alpha, total_numsteps)
-            writer.add_scalar("q_par_norm", dd, total_numsteps)
-            writer.add_scalar("q_value_norm", ee, total_numsteps)
-            writer.add_scalar("p_par_norm", ff, total_numsteps)
-            writer.add_scalar("log_pi", gg, total_numsteps)
+            # writer.add_scalar("loss/critic_1", critic_1_loss, total_numsteps)
+            # writer.add_scalar("loss/critic_2", critic_2_loss, total_numsteps)
+            # writer.add_scalar("loss/policy", policy_loss, total_numsteps)
+            # writer.add_scalar("loss/entropy_loss", ent_loss, total_numsteps)
+            # writer.add_scalar("entropy_temprature/alpha", alpha, total_numsteps)
+            # writer.add_scalar("q_par_norm", dd, total_numsteps)
+            # writer.add_scalar("q_value_norm", ee, total_numsteps)
+            # writer.add_scalar("p_par_norm", ff, total_numsteps)
+            # writer.add_scalar("log_pi", gg, total_numsteps)
 
         if total_numsteps % 10000 == 0:
             torch.cuda.empty_cache()
@@ -721,7 +723,7 @@ for i_episode in itertools.count(1):
             file_name = f"{args.save_prefix}_{args.env_name}_{args.batch_size_pmp}_{args.update_policy_times}_{args.lr}_{args.seed}_{args.updates_per_step}_{args.H}"
             if args.save_result:
                 np.save(f"{args.save_dir}/results/{file_name}", reward_save)
-            writer.add_scalar("avg_reward_and_step_number/test", avg_reward, total_numsteps)
+            # writer.add_scalar("avg_reward_and_step_number/test", avg_reward, total_numsteps)
 
         # save model
         if args.save_model and total_numsteps % args.save_model_interval == 0:

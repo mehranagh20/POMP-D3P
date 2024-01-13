@@ -626,6 +626,15 @@ for i_episode in itertools.count(1):
                     ) = agent.update_parameters_q(
                         memory, memory_fake, args.batch_size, updates_q, real_ratio=args.real_ratio, epsilon=eps
                     )
+                    if args.epsilon > 0:
+                        agent.updated_critics = [torch.randint(0, args.n_critic, (1,)).item()]
+                        if not args.noisy_critic_efficient:
+                            agent.updated_critics = [i for i in range(args.n_critic)]
+                        for critic_ind in agent.updated_critics:
+                            agent.update_parameters_noisy_q(
+                                memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
+                            )
+
                 # critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters_like_sac(memory, args.batch_size, updates_q)
                 updates_q += 1
             # writer.add_scalar("loss/critic_1", critic_1_loss, total_numsteps)

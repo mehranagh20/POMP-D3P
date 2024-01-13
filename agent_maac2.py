@@ -291,6 +291,7 @@ class Agent(object):
         if self.updated_critics == []:
             self.updated_critics = [i for i in range(self.args.n_critic)]
         chosen_critic_ind = np.random.choice(self.updated_critics)
+
         noisy_critic = self.noisy_critics[chosen_critic_ind]
         for i in range(num_iters):
             optim.zero_grad()
@@ -1104,6 +1105,96 @@ class Agent(object):
             alpha_tlogs.item(),
         )
 
+    def update_parameters_noisy_q(
+        self,
+        memory,
+        memory_fake,
+        batch_size,
+        updates,
+        critic_ind,
+        use_decay=False,
+        weight_decay=0.1,
+        real_ratio=0.05,
+        epsilon=None,
+    ):
+        # Sample a batch from memory   update Q network
+        batch_real = int(
+            batch_size * real_ratio
+        )  # 0.05 for InvertedPendulum-v2   try 0.1 for others
+        if batch_size - batch_real > 0 and len(memory_fake) > 0:
+            (
+                state_batch_real,
+                action_batch_real,
+                reward_batch_real,
+                next_state_batch_real,
+                mask_batch_real,
+                _,
+            ) = memory.sample(batch_size=batch_real)
+            (
+                state_batch_fake,
+                action_batch_fake,
+                reward_batch_fake,
+                next_state_batch_fake,
+                mask_batch_fake,
+                _,
+            ) = memory_fake.sample(batch_size=batch_size - batch_real)
+            state_batch = np.concatenate((state_batch_real, state_batch_fake), axis=0)
+            action_batch = np.concatenate((action_batch_real, action_batch_fake), axis=0)
+            reward_batch = np.concatenate((reward_batch_real, reward_batch_fake), axis=0)
+            next_state_batch = np.concatenate(
+                (next_state_batch_real, next_state_batch_fake), axis=0
+            )
+            mask_batch = np.concatenate((mask_batch_real, mask_batch_fake), axis=0)
+
+            state_batch = torch.FloatTensor(state_batch).to(self.device)
+            next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
+            action_batch = torch.FloatTensor(action_batch).to(self.device)
+            reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
+            mask_batch = torch.FloatTensor(mask_batch).to(self.device).unsqueeze(1)
+        else:
+            # Sample a batch from memory   update Q network
+            (
+                state_batch,
+                action_batch,
+                reward_batch,
+                next_state_batch,
+                mask_batch,
+                _,
+            ) = memory.sample(batch_size=batch_size)
+
+            state_batch = torch.FloatTensor(state_batch).to(self.device)
+            next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
+            action_batch = torch.FloatTensor(action_batch).to(self.device)
+            reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
+            mask_batch = torch.FloatTensor(mask_batch).to(self.device).unsqueeze(1)
+
+        with torch.no_grad():
+            next_state_action, next_state_log_pi = self.select_next_action(next_state_batch)
+            # print(next_state_action)
+            qf1_next_target, qf2_next_target = self.critic_target(
+                next_state_batch, next_state_action
+            )
+            # min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) ####- self.alpha * next_state_log_pi
+            min_qf_next_target = (
+                torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
+            )
+            next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
+
+        chosen_critic_ind = critic_ind
+        noisy_critic = self.noisy_critics[chosen_critic_ind]
+        noisy_critic_optim = self.noisy_critic_optims[chosen_critic_ind]
+
+        qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
+        qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
+        qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
+        noisy_critic_optim.zero_grad()
+        (qf1_noisy_loss+qf2_noisy_loss).backward()
+
+        for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
+            param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
+        noisy_critic_optim.step()
+
+
     def update_parameters_q(
         self,
         memory,
@@ -1214,23 +1305,23 @@ class Agent(object):
 
         # thompson sampling part
         # epsilon decays to zero. No need to keep updating noisy critics if epsilon is zero
-        if self.args.epsilon > 0 and (epsilon is None or epsilon > 1e-6):
-            self.updated_critics = [torch.randint(0, len(self.noisy_critics), (1,)).item()]
-            if not self.args.noisy_critic_efficient:
-                self.updated_critics = [i for i in range(len(self.noisy_critics))]
-            for chosen_critic_ind in self.updated_critics:
-                noisy_critic = self.noisy_critics[chosen_critic_ind]
-                noisy_critic_optim = self.noisy_critic_optims[chosen_critic_ind]
+        # if self.args.epsilon > 0 and (epsilon is None or epsilon > 1e-6):
+        #     self.updated_critics = [torch.randint(0, len(self.noisy_critics), (1,)).item()]
+        #     if not self.args.noisy_critic_efficient:
+        #         self.updated_critics = [i for i in range(len(self.noisy_critics))]
+        #     for chosen_critic_ind in self.updated_critics:
+        #         noisy_critic = self.noisy_critics[chosen_critic_ind]
+        #         noisy_critic_optim = self.noisy_critic_optims[chosen_critic_ind]
 
-                qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
-                qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
-                qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
-                noisy_critic_optim.zero_grad()
-                (qf1_noisy_loss+qf2_noisy_loss).backward()
+        #         qf1_noisy, qf2_noisy = noisy_critic(state_batch, action_batch)
+        #         qf1_noisy_loss = F.mse_loss(qf1_noisy, next_q_value)
+        #         qf2_noisy_loss = F.mse_loss(qf2_noisy, next_q_value)
+        #         noisy_critic_optim.zero_grad()
+        #         (qf1_noisy_loss+qf2_noisy_loss).backward()
 
-                for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
-                    param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
-                noisy_critic_optim.step()
+        #         for param, _ in zip(noisy_critic.parameters(), noisy_critic_optim.param_groups):
+        #             param.grad += sqrt(2.0 * self.args.noisy_coef * self.args.lr) * torch.randn(param.grad.size()).to(self.device)
+        #         noisy_critic_optim.step()
 
         if self.automatic_entropy_tuning:
             alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()

@@ -5,7 +5,8 @@ from torch.distributions.normal import Normal
 
 from utility import get_lrschedule
 
-torch.set_default_tensor_type(torch.cuda.FloatTensor)
+# if gpu available, use gpu
+torch.set_default_tensor_type(torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor)
 
 from typing import Tuple
 import math
@@ -17,7 +18,9 @@ import logging
 logger = logging.getLogger(__name__)
 # import copy
 
-device = torch.device("cuda")
+# device = torch.device("cpu")
+# if gpu available, use gpu
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class StandardScaler(object):
@@ -36,8 +39,8 @@ class StandardScaler(object):
         self.std = np.std(data, axis=0, keepdims=True)
         self.std[self.std < 1e-12] = 1.0
 
-        self.mu_tensor = torch.from_numpy(self.mu).float().to("cuda")
-        self.std_tensor = torch.from_numpy(self.std).float().to("cuda")
+        self.mu_tensor = torch.from_numpy(self.mu).float().to(device)
+        self.std_tensor = torch.from_numpy(self.std).float().to(device)
 
     def transform(self, data):
         """Transforms the input matrix data using the parameters of this scaler.
@@ -105,9 +108,10 @@ class EnsembleFC(nn.Module):
         self.out_features = out_features
         self.ensemble_size = ensemble_size
         self.weight = nn.Parameter(torch.Tensor(ensemble_size, in_features, out_features))
+
         self.weight_decay = weight_decay
         if bias:
-            self.bias = nn.Parameter(torch.Tensor(ensemble_size, out_features))
+            self.bias = nn.Parameter(torch.Tensor(ensemble_size, out_features)).to(device)
         else:
             self.register_parameter("bias", None)
         self.reset_parameters()
@@ -138,6 +142,7 @@ class EnsembleModel(nn.Module):
         use_decay=False,
         args=None,
     ):
+        self.device = torch.device("cuda" if args.cuda else "cpu")
         super(EnsembleModel, self).__init__()
         self.hidden_size = hidden_size
         self.nn1 = EnsembleFC(
@@ -416,6 +421,7 @@ class EnsembleEnv:
         use_decay=False,
         args=None,
     ):
+        self.device = torch.device("cuda" if args.cuda else "cpu")
         self.model = EnsembleDynamicsModel(
             network_size,
             elite_size,

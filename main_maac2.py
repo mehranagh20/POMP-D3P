@@ -632,7 +632,7 @@ for i_episode in itertools.count(1):
                         if not args.noisy_critic_efficient:
                             agent.updated_critics = [i for i in range(args.n_critic)]
                         for critic_ind in agent.updated_critics:
-                            for up in args.noisy_num_updates:
+                            for up in range(args.noisy_num_updates):
                                 agent.update_parameters_noisy_q(
                                     memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
                                 )

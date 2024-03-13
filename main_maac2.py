@@ -40,6 +40,7 @@ parser.add_argument("--project_name", default="pomp")
 parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
 parser.add_argument('--noisy_coef', type=float, default=1.0, metavar='G')
 parser.add_argument('--epsilon_decay_end', type=int, default=0, metavar='G')
+parser.add_argument('--noisy_num_updates', type=int, default=1, metavar='G')
 parser.add_argument('--n_critic', type=int, default=1, metavar='G', help='0 for policy sample, 1 for policy mean, 2 for random')
 parser.add_argument('--policy_ga_num_iters', type=int, default=10, metavar='A', help='model checkpoint frequency')
 parser.add_argument('--policy_ga_end_increase_epoch', type=int, default=100, metavar='A', help='model checkpoint frequency')
@@ -631,9 +632,10 @@ for i_episode in itertools.count(1):
                         if not args.noisy_critic_efficient:
                             agent.updated_critics = [i for i in range(args.n_critic)]
                         for critic_ind in agent.updated_critics:
-                            agent.update_parameters_noisy_q(
-                                memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
-                            )
+                            for up in args.noisy_num_updates:
+                                agent.update_parameters_noisy_q(
+                                    memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
+                                )
 
                 # critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters_like_sac(memory, args.batch_size, updates_q)
                 updates_q += 1

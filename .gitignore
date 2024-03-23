@@ -9,6 +9,5 @@ runs/
 draw_cc/
 test.sh
 wandb/
-experiments/
 
 

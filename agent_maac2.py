@@ -123,7 +123,8 @@ class Termination_Fn(object):
             # done = done[:,None]
             return done
         else:
-            assert 1 == 2
+            # assert 1 == 2
+            return np.array([False]).repeat(len(obs))
 
 
 class Agent(object):

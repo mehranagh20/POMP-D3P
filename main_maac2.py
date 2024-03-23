@@ -21,6 +21,7 @@ import logging
 import sys
 import json
 import wandb
+from utility import robosuite_env
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -36,6 +37,9 @@ import env
 parser = argparse.ArgumentParser(description="PyTorch agent")
 #### model type
 parser.add_argument("--project_name", default="pomp")
+
+# robosuite
+parser.add_argument('--robot', type=str, default='Panda')
 
 parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
 parser.add_argument('--noisy_coef', type=float, default=1.0, metavar='G')
@@ -369,20 +373,18 @@ wandb.init(
 
 ##############################
 # Environment
-env = gym.make(args.env_name)
-env.seed(args.seed)
-env.action_space.seed(args.seed)
+# env = gym.make(args.env_name)
+env = robosuite_env(args.env_name, args.robot, args.seed)
+# env.seed(args.seed)
+# env.action_space.seed(args.seed)
 logger.info(
     "env action space, " + f"high {env.action_space.high}, " + f"low {env.action_space.low}"
 )
-env_e = gym.make(args.env_name)
-env_e.seed(1234)
-env_e.action_space.seed(1234)
+# env_e = gym.make(args.env_name)
+env_e = robosuite_env(args.env_name, args.robot, args.seed+1)
+# env_e.seed(1234)
+# env_e.action_space.seed(1234)
 
-
-env_p = gym.make(args.env_name)
-env_p.seed(5678)
-env_p.action_space.seed(5678)
 
 # Agent
 if args.model_type == "Naive":
@@ -500,9 +502,9 @@ for i_episode in itertools.count(1):
     episode_reward = 0
     episode_steps = 0
     done = False
-    state = env.reset()
+    state = env.reset()[0]
 
-    while not done:
+    while not done or episode_steps < env._max_episode_steps:
         if total_numsteps % epoch_length == 0:
             epoch_step += 1
 
@@ -525,7 +527,7 @@ for i_episode in itertools.count(1):
                 )  ##  evaluate=False is better
 
 
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, _, _ = env.step(action)
         episode_steps += 1
         total_numsteps += 1
         episode_reward += reward
@@ -652,15 +654,15 @@ for i_episode in itertools.count(1):
                         episode_reward_e = 0
                         episode_steps_e = 0
                         done_e = False
-                        state_e = env_e.reset()
-                        while not done_e:
+                        state_e = env_e.reset()[0]
+                        while not done_e or episode_steps_e < env_e._max_episode_steps:
                             action_e = agent.select_action(
                                 state_e,
                                 evaluate=True,
                                 ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
                             )
                             episode_steps_e += 1
-                            next_state_e, reward_e, done_e, _ = env_e.step(action_e)  # fix bug
+                            next_state_e, reward_e, done_e, _, _ = env_e.step(action_e)  # fix bug
                             episode_reward_e += reward_e
                             state_e = next_state_e
                         avg_reward += episode_reward_e
@@ -697,11 +699,11 @@ for i_episode in itertools.count(1):
                 episode_reward_e = 0
                 episode_steps_e = 0
                 done_e = False
-                state_e = env_e.reset()
-                while not done_e:
+                state_e = env_e.reset()[0]
+                while not done_e or episode_steps_e < env_e._max_episode_steps:
                     action_e = agent.select_action(state_e, evaluate=True, ddp=False)
                     episode_steps_e += 1
-                    next_state_e, reward_e, done_e, _ = env_e.step(action_e)  # fix bug
+                    next_state_e, reward_e, done_e, _, _ = env_e.step(action_e)  # fix bug
                     episode_reward_e += reward_e
                     state_e = next_state_e
                 avg_reward += episode_reward_e

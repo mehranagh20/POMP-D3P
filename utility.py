@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import math
 from torch.optim.lr_scheduler import LambdaLR
+import robosuite as suite
+from robosuite.wrappers import GymWrapper
 
 
 def xu2t(x, u, DIM_X, DIM_U):
@@ -64,3 +66,21 @@ def get_lrschedule(args, optimizer):
     else:
         lr_scheduler = LambdaLR(optimizer, lambda x: 1.0)
     return lr_scheduler
+
+def robosuite_env(env_name, robot, seed):
+    env = GymWrapper(
+    suite.make(
+        env_name=env_name,  # try with other tasks like "Stack" and "Door"
+        robots=robot,  # try with other robots like "Sawyer" and "Jaco"
+        has_renderer=False,
+        has_offscreen_renderer=False,
+        use_camera_obs=False,
+        reward_shaping=True,
+        horizon=200,
+        use_object_obs=True,
+    ))
+    env._max_episode_steps = 200
+
+        # reset the environment
+    env.reset()
+    return env

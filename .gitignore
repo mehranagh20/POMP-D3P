@@ -1,5 +1,4 @@
 results/
-models/
 args.file
 __pycache__
 .ipynb_checkpoints/

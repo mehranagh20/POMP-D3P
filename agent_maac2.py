@@ -263,17 +263,19 @@ class Agent(object):
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        with torch.no_grad():
-            if not ddp:
-                actions, _, _ = self.policy.sample(state)
-            else:
-                try:
-                    actions = self.select_action_ddp(
-                        prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
-                    ).unsqueeze(0)
-                except:
-                    logger.info("Catch exception ddp, fallback to SAC.")
-                    actions, _, _ = self.policy.sample(state)
+        actions, _, _ = self.policy.sample(state)
+
+        # with torch.no_grad():
+        #     if not ddp:
+        #         actions, _, _ = self.policy.sample(state)
+        #     else:
+        #         try:
+        #             actions = self.select_action_ddp(
+        #                 prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
+        #             ).unsqueeze(0)
+        #         except:
+        #             logger.info("Catch exception ddp, fallback to SAC.")
+        #             actions, _, _ = self.policy.sample(state)
 
         num_iters = 0
         if epoch is not None:

@@ -21,6 +21,7 @@ import logging
 import sys
 import json
 import wandb
+from utility import hard_update
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -41,6 +42,8 @@ parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
 parser.add_argument('--noisy_coef', type=float, default=1.0, metavar='G')
 parser.add_argument('--epsilon_decay_end', type=int, default=0, metavar='G')
 parser.add_argument('--noisy_num_updates', type=int, default=1, metavar='G')
+parser.add_argument('--noisy_num_replace', type=int, default=0, metavar='G')
+parser.add_argument('--noisy_replace_iter', type=int, default=5000, metavar='G')
 parser.add_argument('--n_critic', type=int, default=1, metavar='G', help='0 for policy sample, 1 for policy mean, 2 for random')
 parser.add_argument('--policy_ga_num_iters', type=int, default=10, metavar='A', help='model checkpoint frequency')
 parser.add_argument('--policy_ga_end_increase_epoch', type=int, default=100, metavar='A', help='model checkpoint frequency')
@@ -496,6 +499,7 @@ flag_model_trained = False  ##### use true model do not need to train
 epoch_step = -1
 epoch_length = args.epoch_length
 rollout_length = 1
+num_noisy_updates = 0
 for i_episode in itertools.count(1):
 
     episode_reward = 0
@@ -513,7 +517,7 @@ for i_episode in itertools.count(1):
             eps = args.epsilon
             if args.epsilon_decay_end != 0:
                 eps = eps - total_numsteps * (eps / args.epsilon_decay_end)
-                
+
             noisy = np.random.rand() < eps
             with aggregate("exploration"):
                 action = agent.select_action(
@@ -524,6 +528,8 @@ for i_episode in itertools.count(1):
                     noisy=noisy,
                     epoch=epoch_step,
                 )  ##  evaluate=False is better
+
+        num_noisy_updates += noisy
 
 
         next_state, reward, done, _ = env.step(action)
@@ -628,26 +634,27 @@ for i_episode in itertools.count(1):
                         memory, memory_fake, args.batch_size, updates_q, real_ratio=args.real_ratio, epsilon=eps
                     )
                     if args.epsilon > 0:
-                        agent.updated_critics = [torch.randint(0, args.n_critic, (1,)).item()]
-                        if not args.noisy_critic_efficient:
-                            agent.updated_critics = [i for i in range(args.n_critic)]
-                        for critic_ind in agent.updated_critics:
-                            for up in range(args.noisy_num_updates):
-                                agent.update_parameters_noisy_q(
-                                    memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
-                                )
+                        for up in range(args.noisy_num_updates):
+                            critic_ind = torch.randint(0, args.n_critic, (1,)).item()
+                            agent.update_parameters_noisy_q(
+                                memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
+                            )
 
-                # critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters_like_sac(memory, args.batch_size, updates_q)
-                updates_q += 1
-            # writer.add_scalar("loss/critic_1", critic_1_loss, total_numsteps)
-            # writer.add_scalar("loss/critic_2", critic_2_loss, total_numsteps)
-            # writer.add_scalar("loss/policy", policy_loss, total_numsteps)
-            # writer.add_scalar("loss/entropy_loss", ent_loss, total_numsteps)
-            # writer.add_scalar("entropy_temprature/alpha", alpha, total_numsteps)
-            # writer.add_scalar("q_par_norm", dd, total_numsteps)
-            # writer.add_scalar("q_value_norm", ee, total_numsteps)
-            # writer.add_scalar("p_par_norm", ff, total_numsteps)
-            # writer.add_scalar("log_pi", gg, total_numsteps)
+        if (args.epsilon > 0 and len(memory) >= args.batch_size and len(memory) > args.min_pool_size):
+            for up in range(args.noisy_num_updates):
+                critic_ind = torch.randint(0, args.n_critic, (1,)).item()
+                agent.update_parameters_noisy_q(
+                    memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
+                )
+            updates_q += 1
+
+            if (updates_q % args.noisy_replace_iter == 0):
+                for i in range(args.noisy_num_replace):
+                    critic_ind = torch.randint(0, args.n_critic, (1,)).item()
+                    print(f"replacing {critic_ind}")
+                    hard_update(agent.noisy_critics[critic_ind], agent.critic)
+
+
 
         if total_numsteps % 10000 == 0:
             torch.cuda.empty_cache()
@@ -678,14 +685,44 @@ for i_episode in itertools.count(1):
                         avg_steps += episode_steps_e
                     avg_reward /= episodes
                     avg_steps /= episodes
-                    # reward_save.append([total_numsteps, avg_reward])
-                    # print(total_numsteps, avg_reward, avg_steps)
+
+
+                    avg_reward_nosy = 0.0
+                    avg_steps_nosy = 0.0
+                    episodes = 2
+                    for _ in range(episodes):
+                        episode_reward_e = 0
+                        episode_steps_e = 0
+                        done_e = False
+                        state_e = env_e.reset()
+                        while not done_e:
+                            action_e = agent.select_action(
+                                state_e,
+                                evaluate=True,
+                                ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
+                                noisy=True,
+                            )
+                            episode_steps_e += 1
+                            next_state_e, reward_e, done_e, _ = env_e.step(action_e)
+                            episode_reward_e += reward_e
+                            state_e = next_state_e
+                        avg_reward_nosy += episode_reward_e
+                        avg_steps_nosy += episode_steps_e
+                    avg_reward_nosy /= episodes
+                    avg_steps_nosy /= episodes
+
+
                     logger.info(
                         "total_numsteps {}, ddp, avg_reward {}, avg_steps {}.".format(
                             total_numsteps, avg_reward, avg_steps
                         )
                     )
-                    wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps//args.see_freq)
+                    wandb.log({"reward": avg_reward, "steps": avg_steps, "noisy_reward": avg_reward_nosy, "noisy_steps": avg_steps_nosy, "num_noisy_updates": num_noisy_updates}, step=total_numsteps//args.see_freq)
+
+                    for ep, improv in agent.improvements:
+                        wandb.log({"improvement": improv, "epoch": ep}, step=ep)
+                    agent.improvements = []
+
             try:
                 logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
                 reset_meters("exploration")

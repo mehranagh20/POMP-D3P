@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from buffer import ReplayMemory
 from nets import DeterministicPolicy
 from nets import GaussianPolicy
@@ -165,6 +165,7 @@ class Agent(object):
         self.end_increase_epoch = args.policy_ga_end_increase_epoch
 
         if self.args.epsilon > 0:
+            self.improvements = []
             self.noisy_critics = []
             self.noisy_critic_optims = []
             self.noisy_critic_lrschedulers = []
@@ -258,37 +259,41 @@ class Agent(object):
         }
     
     def sample_best_action(self, state, evaluate, ddp, ddp_iters, init_action, epoch=None):
+        batch_size = 10
         prev = state
         state = torch.FloatTensor(state).to(self.device)
+
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
+
+        states = torch.repeat_interleave(state, batch_size, dim=0)
 
         # actions, _, _ = self.policy.sample(state)
 
         with torch.no_grad():
-            if not ddp:
-                actions, _, _ = self.policy.sample(state)
-            else:
+            actions, _, _ = self.policy.sample(states)
+            if ddp:
                 try:
-                    actions = self.select_action_ddp(
+                    ddp_action = self.select_action_ddp(
                         prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
                     ).unsqueeze(0)
+                    actions = torch.cat([actions, ddp_action], dim=0)
                 except:
                     logger.info("Catch exception ddp, fallback to SAC.")
-                    actions, _, _ = self.policy.sample(state)
 
-        num_iters = 0
-        if epoch is not None:
-            num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
-            num_iters = min(num_iters, self.max_num_iters)
+        # num_iters = 0
+        # if epoch is not None:
+        #     num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
+        #     num_iters = min(num_iters, self.max_num_iters)
+        num_iters = self.max_num_iters
+        # if num_iters == 0:
+        #     return actions.detach().cpu().numpy()[0]
 
-        if num_iters == 0:
-            return actions.detach().cpu().numpy()[0]
-
+        state = torch.repeat_interleave(state, actions.shape[0], dim=0)
         actions = self.policy.unscale_action(actions)
 
         action = torch.tensor(actions, requires_grad=True, device=self.device)
-        optim = torch.optim.Adam([action], lr=self.args.policy_ga_lr)
+        optim = torch.optim.AdamW([action], lr=self.args.policy_ga_lr, weight_decay=0.01)
 
         if self.updated_critics == []:
             self.updated_critics = [i for i in range(self.args.n_critic)]
@@ -305,6 +310,18 @@ class Agent(object):
         # set end loss
         action = action.detach()
         action = self.policy.scale_action(action)
+
+        # find the best action based on self.critic
+        with torch.no_grad():
+            q1, q2 = noisy_critic(state, action)
+            ind = torch.argmax(q1 + q2)
+            action = action[ind]
+
+            actions = self.policy.scale_action(actions)
+            q1_bef, q2_bef = noisy_critic(state, actions)
+            ind_bef = torch.argmax(q1_bef + q2_bef)
+            improved = (q1 + q2)[ind] - (q1_bef + q2_bef)[ind_bef]
+            self.improvements.append((epoch, improved.item()))
 
         if action.shape[0] == 1:
             return action.cpu().numpy()[0]

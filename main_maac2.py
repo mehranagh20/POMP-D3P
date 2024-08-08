@@ -528,6 +528,7 @@ for i_episode in itertools.count(1):
                     init_action=env.action_space.sample() if args.random_init else None,
                     noisy=noisy,
                     epoch=epoch_step,
+                    iter=total_numsteps,
                 )  ##  evaluate=False is better
 
         num_noisy_updates += noisy

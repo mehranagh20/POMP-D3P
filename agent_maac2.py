@@ -326,9 +326,9 @@ class Agent(object):
             return action.cpu().numpy()[0]
         return action.cpu().numpy()
 
-    def select_action(self, state, evaluate=False, ddp=False, ddp_iters=None, init_action=None, noisy=False, epoch=1):
+    def select_action(self, state, evaluate=False, ddp=False, ddp_iters=None, init_action=None, noisy=False, epoch=1, iter=None):
         if noisy:
-            return self.sample_best_action(state, evaluate, ddp, ddp_iters, init_action, epoch=epoch)
+            return self.sample_best_action(state, evaluate, ddp, ddp_iters, init_action, epoch=epoch, iter=iter)
         if ddp:
             try:
                 if not self.gbp:

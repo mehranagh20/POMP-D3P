@@ -508,6 +508,7 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
+        noisy = False
         if total_numsteps % epoch_length == 0:
             epoch_step += 1
 

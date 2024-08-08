@@ -688,41 +688,12 @@ for i_episode in itertools.count(1):
                     avg_steps /= episodes
 
 
-                    avg_reward_nosy = 0.0
-                    avg_steps_nosy = 0.0
-                    episodes = 2
-                    for _ in range(episodes):
-                        episode_reward_e = 0
-                        episode_steps_e = 0
-                        done_e = False
-                        state_e = env_e.reset()
-                        while not done_e:
-                            action_e = agent.select_action(
-                                state_e,
-                                evaluate=True,
-                                ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
-                                noisy=True,
-                            )
-                            episode_steps_e += 1
-                            next_state_e, reward_e, done_e, _ = env_e.step(action_e)
-                            episode_reward_e += reward_e
-                            state_e = next_state_e
-                        avg_reward_nosy += episode_reward_e
-                        avg_steps_nosy += episode_steps_e
-                    avg_reward_nosy /= episodes
-                    avg_steps_nosy /= episodes
-
-
                     logger.info(
-                        "total_numsteps {}, ddp, avg_reward {}, avg_steps {}.".format(
+                        "total_numsteps {}, ddp, avg_reward {}, avg_steps {}". format(
                             total_numsteps, avg_reward, avg_steps
                         )
                     )
-                    wandb.log({"reward": avg_reward, "steps": avg_steps, "noisy_reward": avg_reward_nosy, "noisy_steps": avg_steps_nosy, "num_noisy_updates": num_noisy_updates}, step=total_numsteps//args.see_freq)
-
-                    for ep, improv in agent.improvements:
-                        wandb.log({"improvement": improv, "epoch": ep}, step=ep)
-                    agent.improvements = []
+                    wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps//args.see_freq)
 
             try:
                 logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
@@ -741,7 +712,7 @@ for i_episode in itertools.count(1):
 
             avg_reward = 0.0
             avg_steps = 0.0
-            episodes = 1
+            episodes = 4
             for _ in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0
@@ -757,6 +728,36 @@ for i_episode in itertools.count(1):
                 avg_steps += episode_steps_e
             avg_reward /= episodes
             avg_steps /= episodes
+
+
+            avg_reward_nosy = 0.0
+            avg_steps_nosy = 0.0
+            episodes = 2
+            for _ in range(episodes):
+                episode_reward_e = 0
+                episode_steps_e = 0
+                done_e = False
+                state_e = env_e.reset()
+                while not done_e:
+                    action_e = agent.select_action(
+                        state_e,
+                        evaluate=True,
+                        ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
+                        noisy=True,
+                    )
+                    episode_steps_e += 1
+                    next_state_e, reward_e, done_e, _ = env_e.step(action_e)
+                    episode_reward_e += reward_e
+                    state_e = next_state_e
+                avg_reward_nosy += episode_reward_e
+                avg_steps_nosy += episode_steps_e
+            avg_reward_nosy /= episodes
+            avg_steps_nosy /= episodes
+
+
+
+
+
             reward_save.append([total_numsteps, avg_reward])
             # print(total_numsteps, avg_reward, avg_steps)
             logger.info(
@@ -764,16 +765,15 @@ for i_episode in itertools.count(1):
                     total_numsteps, avg_reward, avg_steps
                 )
             )
-            metric = {"reward": avg_reward, "steps": avg_steps}
+            metric = {"reward": avg_reward, "steps": avg_steps, "noisy_reward": avg_reward_nosy, "noisy_steps": avg_steps_nosy, "num_noisy_updates": num_noisy_updates}
             wandb.log(metric, step=total_numsteps//args.see_freq)
             add_metric(metric, args)
-            
-            logger.info(json.dumps(agent.get_lr()))
-            file_name = f"{args.save_prefix}_{args.env_name}_{args.batch_size_pmp}_{args.update_policy_times}_{args.lr}_{args.seed}_{args.updates_per_step}_{args.H}"
-            if args.save_result:
-                np.save(f"{args.save_dir}/results/{file_name}", reward_save)
-            # writer.add_scalar("avg_reward_and_step_number/test", avg_reward, total_numsteps)
 
+            for ep, improv in agent.improvements:
+                wandb.log({"improvement": improv, "epoch": ep}, step=ep)
+            agent.improvements = []
+
+            
         # save model
         if args.save_model and total_numsteps % args.save_model_interval == 0:
             # agent.save_model(args.env_name, str(args.seed)+'-'+str(total_numsteps))

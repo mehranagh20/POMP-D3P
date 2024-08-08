@@ -766,6 +766,7 @@ for i_episode in itertools.count(1):
                 )
             )
             metric = {"reward": avg_reward, "steps": avg_steps, "noisy_reward": avg_reward_nosy, "noisy_steps": avg_steps_nosy, "num_noisy_updates": num_noisy_updates}
+            num_noisy_updates = 0
             wandb.log(metric, step=total_numsteps//args.see_freq)
             add_metric(metric, args)
 
@@ -774,6 +775,7 @@ for i_episode in itertools.count(1):
             agent.improvements = []
 
             
+
         # save model
         if args.save_model and total_numsteps % args.save_model_interval == 0:
             # agent.save_model(args.env_name, str(args.seed)+'-'+str(total_numsteps))

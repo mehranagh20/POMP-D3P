@@ -281,13 +281,12 @@ class Agent(object):
                 except:
                     logger.info("Catch exception ddp, fallback to SAC.")
 
-        # num_iters = 0
-        # if epoch is not None:
-        #     num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
-        #     num_iters = min(num_iters, self.max_num_iters)
-        num_iters = self.max_num_iters
-        # if num_iters == 0:
-        #     return actions.detach().cpu().numpy()[0]
+        num_iters = 0
+        if epoch is not None:
+            num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
+            num_iters = min(num_iters, self.max_num_iters)
+        if num_iters == 0:
+            return actions.detach().cpu().numpy()[-1]
 
         state = torch.repeat_interleave(state, actions.shape[0], dim=0)
         actions = self.policy.unscale_action(actions)

@@ -258,7 +258,7 @@ class Agent(object):
             "model_lr": f"{self.model_ensemble.model.ensemble_model.lr_scheduler.get_last_lr()[0]:.5e}",
         }
     
-    def sample_best_action(self, state, evaluate, ddp, ddp_iters, init_action, epoch=None):
+    def sample_best_action(self, state, evaluate, ddp, ddp_iters, init_action, epoch=None, iter=None):
         batch_size = 10
         prev = state
         state = torch.FloatTensor(state).to(self.device)
@@ -320,7 +320,7 @@ class Agent(object):
             q1_bef, q2_bef = noisy_critic(state, actions)
             ind_bef = torch.argmax(q1_bef + q2_bef)
             improved = (q1 + q2)[ind] - (q1_bef + q2_bef)[ind_bef]
-            self.improvements.append((epoch, improved.item()))
+            self.improvements.append((iter, improved.item()))
 
         if action.shape[0] == 1:
             return action.cpu().numpy()[0]

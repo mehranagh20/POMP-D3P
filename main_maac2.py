@@ -772,7 +772,7 @@ for i_episode in itertools.count(1):
             add_metric(metric, args)
 
             for ep, improv in agent.improvements:
-                wandb.log({"improvement": improv, "iteration": ep, "iter": total_numsteps//args.see_freq})
+                wandb.log({"improvement": improv, "iteration": ep, "iterfreq": ep//args.see_freq})
             agent.improvements = []
 
             

@@ -320,7 +320,8 @@ class Agent(object):
             q1_bef, q2_bef = noisy_critic(state, actions)
             ind_bef = torch.argmax(q1_bef + q2_bef)
             improved = (q1 + q2)[ind] - (q1_bef + q2_bef)[ind_bef]
-            self.improvements.append((iter, improved.item()))
+            if iter is not None:
+                self.improvements.append((iter, improved.item()))
 
         if action.shape[0] == 1:
             return action.cpu().numpy()[0]

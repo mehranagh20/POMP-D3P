@@ -18,6 +18,7 @@ from functorch import jacrev, jacfwd
 import metrics
 from utility import get_lrschedule
 from math import sqrt
+from dbas.dbas import run_dbas
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +260,7 @@ class Agent(object):
         }
     
     def sample_best_action(self, state, evaluate, ddp, ddp_iters, init_action, epoch=None, iter=None):
-        batch_size = 10
+        batch_size = 500
         prev = state
         state = torch.FloatTensor(state).to(self.device)
 
@@ -280,49 +281,57 @@ class Agent(object):
                     actions = torch.cat([actions, ddp_action], dim=0)
                 except:
                     logger.info("Catch exception ddp, fallback to SAC.")
+        
+        # oracle = lambda actions: self.critic(states, actions)
+        def oracle (actions):
+            q1, q2 = self.critic(states, actions)
+            return (q1 + q2) / 2
+        action = run_dbas(50, actions, oracle)
 
-        num_iters = 0
-        if epoch is not None:
-            num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
-            num_iters = min(num_iters, self.max_num_iters)
-        if num_iters == 0:
-            return actions.detach().cpu().numpy()[-1]
+        # num_iters = 0
+        # if epoch is not None:
+        #     num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
+        #     num_iters = min(num_iters, self.max_num_iters)
+        # if num_iters == 0:
+        #     return actions.detach().cpu().numpy()[-1]
 
-        state = torch.repeat_interleave(state, actions.shape[0], dim=0)
-        actions = self.policy.unscale_action(actions)
+        # state = torch.repeat_interleave(state, actions.shape[0], dim=0)
+        # actions = self.policy.unscale_action(actions)
 
-        action = torch.tensor(actions, requires_grad=True, device=self.device)
-        optim = torch.optim.AdamW([action], lr=self.args.policy_ga_lr, weight_decay=0.01)
+        # action = torch.tensor(actions, requires_grad=True, device=self.device)
+        # optim = torch.optim.AdamW([action], lr=self.args.policy_ga_lr, weight_decay=0.01)
 
-        if self.updated_critics == []:
-            self.updated_critics = [i for i in range(self.args.n_critic)]
-        chosen_critic_ind = np.random.choice(self.updated_critics)
+        # if self.updated_critics == []:
+        #     self.updated_critics = [i for i in range(self.args.n_critic)]
+        # chosen_critic_ind = np.random.choice(self.updated_critics)
 
-        noisy_critic = self.noisy_critics[chosen_critic_ind]
-        for i in range(num_iters):
-            optim.zero_grad()
-            scaled_action = self.policy.scale_action(action)
-            q1, q2 = noisy_critic(state, scaled_action)
-            loss = -(q1 + q2).squeeze().mean()
-            loss.backward()
-            optim.step()
-        # set end loss
-        action = action.detach()
-        action = self.policy.scale_action(action)
+        # noisy_critic = self.noisy_critics[chosen_critic_ind]
+        # for i in range(num_iters):
+        #     optim.zero_grad()
+        #     scaled_action = self.policy.scale_action(action)
+        #     q1, q2 = noisy_critic(state, scaled_action)
+        #     loss = -(q1 + q2).squeeze().mean()
+        #     loss.backward()
+        #     optim.step()
+        # # set end loss
+        # action = action.detach()
+        # action = self.policy.scale_action(action)
 
-        # find the best action based on self.critic
-        with torch.no_grad():
-            q1, q2 = noisy_critic(state, action)
-            ind = torch.argmax(q1 + q2)
-            action = action[ind]
+        # # find the best action based on self.critic
+        # with torch.no_grad():
+        #     q1, q2 = noisy_critic(state, action)
+        #     ind = torch.argmax(q1 + q2)
+        #     action = action[ind]
 
-            actions = self.policy.scale_action(actions)
-            q1_bef, q2_bef = noisy_critic(state, actions)
-            ind_bef = torch.argmax(q1_bef + q2_bef)
-            improved = (q1 + q2)[ind] - (q1_bef + q2_bef)[ind_bef]
-            if iter is not None:
-                self.improvements.append((iter, improved.item()))
+        #     actions = self.policy.scale_action(actions)
+        #     q1_bef, q2_bef = noisy_critic(state, actions)
+        #     ind_bef = torch.argmax(q1_bef + q2_bef)
+        #     improved = (q1 + q2)[ind] - (q1_bef + q2_bef)[ind_bef]
+        #     if iter is not None:
+        #         self.improvements.append((iter, improved.item()))
 
+        num_returned = action.shape[0]
+        action = action[torch.randint(num_returned, (1,))]
         if action.shape[0] == 1:
             return action.cpu().numpy()[0]
         return action.cpu().numpy()

@@ -3,7 +3,7 @@ import torch
 from dbas.gmm import GaussianMixture
 
 @torch.no_grad()
-def run_dbas(num_iters, init_data, oracle, q=0.8, n_components=10):
+def run_dbas(num_iters, init_data, oracle, data_min, data_max, q=0.8, n_components=10):
     d = init_data.shape[1]
     oracle_vals = oracle(init_data)
     gamma = torch.median(oracle_vals)
@@ -16,6 +16,8 @@ def run_dbas(num_iters, init_data, oracle, q=0.8, n_components=10):
         scores = oracle(data).flatten()
         gamma = torch.quantile(scores, q)
         data = data[scores >= gamma, :]
+        # truncate data
+        data = torch.clamp(data, data_min, data_max)
     
     return data
         

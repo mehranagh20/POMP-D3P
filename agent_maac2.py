@@ -286,7 +286,7 @@ class Agent(object):
         def oracle (actions):
             q1, q2 = self.critic(states, actions)
             return (q1 + q2) / 2
-        action = run_dbas(50, actions, oracle)
+        action = run_dbas(50, actions, oracle, self.policy.action_space_low, self.policy.action_space_high)
 
         # num_iters = 0
         # if epoch is not None:

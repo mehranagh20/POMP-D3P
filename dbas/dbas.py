@@ -10,7 +10,7 @@ def run_dbas(num_iters, init_data, oracle, q=0.8, n_components=10):
     data = init_data
 
     for _ in range(num_iters):
-        model = GaussianMixture(n_components, d)
+        model = GaussianMixture(n_components, d).cuda()
         model.fit(data)
         data, _ = model.sample(init_data.shape[0])
         scores = oracle(data).flatten()

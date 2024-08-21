@@ -68,6 +68,7 @@ class GaussianMixture(torch.nn.Module):
         else:
             self.mu = torch.nn.Parameter(torch.randn(1, self.n_components, self.n_features), requires_grad=False)
 
+        assert self.mu.size() == (1, self.n_components, self.n_features), "Input mu does not have required tensor dimensions (1, %i, %i)" % (self.n_components, self.n_features)
         if self.covariance_type == "diag":
             if self.var_init is not None:
                 # (1, k, d)
@@ -172,6 +173,8 @@ class GaussianMixture(torch.nn.Module):
                 self.__update_var(var_old)
 
         self.params_fitted = True
+        if self.mu.size() == (self.n_components, self.n_features):
+            self.mu.data = self.mu.unsqueeze(0)
 
 
     def predict(self, x, probs=False):
@@ -226,7 +229,10 @@ class GaussianMixture(torch.nn.Module):
             if self.covariance_type == "diag":
                 x_k = self.mu[0, k] + torch.randn(int(counts[k]), self.n_features, device=x.device) * torch.sqrt(self.var[0, k])
             elif self.covariance_type == "full":
-                d_k = torch.distributions.multivariate_normal.MultivariateNormal(self.mu[0, k], self.var[0, k])
+                try:
+                    d_k = torch.distributions.multivariate_normal.MultivariateNormal(self.mu[0, k], self.var[0, k])
+                except:
+                    print('error')
                 x_k = torch.stack([d_k.sample() for _ in range(int(counts[k]))])
 
             x = torch.cat((x, x_k), dim=0)

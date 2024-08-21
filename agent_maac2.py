@@ -278,7 +278,7 @@ class Agent(object):
                     ddp_action = self.select_action_ddp(
                         prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
                     ).unsqueeze(0)
-                    actions = torch.cat([actions, ddp_action], dim=0)
+                    actions[-1] = ddp_action
                 except:
                     logger.info("Catch exception ddp, fallback to SAC.")
         

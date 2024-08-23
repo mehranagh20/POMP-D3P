@@ -231,8 +231,9 @@ class GaussianMixture(torch.nn.Module):
             elif self.covariance_type == "full":
                 try:
                     d_k = torch.distributions.multivariate_normal.MultivariateNormal(self.mu[0, k], self.var[0, k])
-                except:
-                    print('error')
+                except Exception as e:
+                    print(self.mu.shape)
+                    print(e)
                 x_k = torch.stack([d_k.sample() for _ in range(int(counts[k]))])
 
             x = torch.cat((x, x_k), dim=0)

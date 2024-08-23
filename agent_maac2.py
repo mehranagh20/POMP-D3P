@@ -19,6 +19,7 @@ import metrics
 from utility import get_lrschedule
 from math import sqrt
 from dbas.dbas import run_dbas
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,7 @@ class Agent(object):
 
         if self.args.epsilon > 0:
             self.improvements = []
+            self.times = []
             self.noisy_critics = []
             self.noisy_critic_optims = []
             self.noisy_critic_lrschedulers = []
@@ -260,7 +262,7 @@ class Agent(object):
         }
     
     def sample_best_action(self, state, evaluate, ddp, ddp_iters, init_action, epoch=None, iter=None):
-        batch_size = 500
+        batch_size = self.args.dbas_num_samples
         prev = state
         state = torch.FloatTensor(state).to(self.device)
 
@@ -273,20 +275,24 @@ class Agent(object):
 
         with torch.no_grad():
             actions, _, _ = self.policy.sample(states)
-            if ddp:
-                try:
-                    ddp_action = self.select_action_ddp(
-                        prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
-                    ).unsqueeze(0)
-                    actions[-1] = ddp_action
-                except:
-                    logger.info("Catch exception ddp, fallback to SAC.")
+            # if ddp:
+            #     try:
+            #         ddp_action = self.select_action_ddp(
+            #             prev, evaluate, ddp_iters=ddp_iters, init_action=init_action
+            #         ).unsqueeze(0)
+            #         actions[-1] = ddp_action
+            #     except:
+            #         logger.info("Catch exception ddp, fallback to SAC.")
         
         # oracle = lambda actions: self.critic(states, actions)
         def oracle (actions):
             q1, q2 = self.critic(states, actions)
             return (q1 + q2) / 2
-        action = run_dbas(50, actions, oracle, self.policy.action_space_low, self.policy.action_space_high)
+        start_time = time.time()
+        action = run_dbas(self.args.dbas_iters, actions, oracle, self.policy.action_space_low, self.policy.action_space_high,
+                          q=self.args.dbas_q, n_components=self.args.dbas_n_components, gmm_iter=self.args.dbas_gmm_iter)
+        self.times.append((iter, time.time() - start_time))
+        
 
         # num_iters = 0
         # if epoch is not None:

@@ -534,7 +534,7 @@ for i_episode in itertools.count(1):
                     noisy=noisy,
                     epoch=epoch_step,
                     iter=total_numsteps,
-                )  ##  evaluate=False is better
+                )  ##evaluate=False is better
 
         num_noisy_updates += noisy
 
@@ -672,7 +672,7 @@ for i_episode in itertools.count(1):
                 with aggregate("inference"):
                     avg_reward = 0.0
                     avg_steps = 0.0
-                    episodes = 10
+                    episodes = 3
                     for _ in range(episodes):
                         episode_reward_e = 0
                         episode_steps_e = 0
@@ -699,7 +699,7 @@ for i_episode in itertools.count(1):
                             total_numsteps, avg_reward, avg_steps
                         )
                     )
-                    wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps//args.see_freq)
+                    wandb.log({"ddp_reward": avg_reward, "ddp_steps": avg_steps}, step=total_numsteps//args.see_freq)
 
             try:
                 logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
@@ -718,7 +718,7 @@ for i_episode in itertools.count(1):
 
             avg_reward = 0.0
             avg_steps = 0.0
-            episodes = 5
+            episodes = 3
             for _ in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0
@@ -738,7 +738,7 @@ for i_episode in itertools.count(1):
 
             avg_reward_nosy = 0.0
             avg_steps_nosy = 0.0
-            episodes = 2
+            episodes = 0
             for _ in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0
@@ -759,9 +759,6 @@ for i_episode in itertools.count(1):
                 avg_steps_nosy += episode_steps_e
             avg_reward_nosy /= episodes
             avg_steps_nosy /= episodes
-
-
-
 
 
             reward_save.append([total_numsteps, avg_reward])

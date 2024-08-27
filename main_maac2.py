@@ -738,7 +738,7 @@ for i_episode in itertools.count(1):
 
             avg_reward_nosy = 0.0
             avg_steps_nosy = 0.0
-            episodes = 0
+            episodes = 1
             for _ in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0

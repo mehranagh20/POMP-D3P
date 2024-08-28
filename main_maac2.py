@@ -54,6 +54,7 @@ parser.add_argument('--dbas_iters', type=int, default=50)
 parser.add_argument('--dbas_num_samples', type=int, default=500)
 parser.add_argument('--dbas_q', type=float, default=0.8)
 parser.add_argument('--dbas_n_components', type=int, default=10)
+parser.add_argument('--dbas_covariance_type', type=str, default='full')
 parser.add_argument('--dbas_gmm_iter', type=int, default=100)
 parser.add_argument('--save_dir', type=str, default='.')
 

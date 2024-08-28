@@ -225,7 +225,7 @@ class GaussianMixture(torch.nn.Module):
         y = torch.cat([torch.full([int(sample)], j, device=counts.device) for j, sample in enumerate(counts)])
 
         # Only iterate over components with non-zero counts
-        for k in torch.arange(self.n_components)[counts > 0]: 
+        for k in torch.arange(self.n_components)[counts.cpu() > 0]: 
             if self.covariance_type == "diag":
                 x_k = self.mu[0, k] + torch.randn(int(counts[k]), self.n_features, device=x.device) * torch.sqrt(self.var[0, k])
             elif self.covariance_type == "full":

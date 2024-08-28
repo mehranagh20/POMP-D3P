@@ -290,7 +290,8 @@ class Agent(object):
             return (q1 + q2) / 2
         start_time = time.time()
         action = run_dbas(self.args.dbas_iters, actions, oracle, self.policy.action_space_low, self.policy.action_space_high,
-                          q=self.args.dbas_q, n_components=self.args.dbas_n_components, gmm_iter=self.args.dbas_gmm_iter)
+                          q=self.args.dbas_q, n_components=self.args.dbas_n_components, gmm_iter=self.args.dbas_gmm_iter,
+                          covariance_type=self.args.dbas_covariance_type)
         self.times.append((iter, time.time() - start_time))
         
 

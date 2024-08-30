@@ -2,7 +2,6 @@ import torch
 import numpy as np
 
 from math import pi
-from scipy.special import logsumexp
 from dbas.utils import calculate_matmul, calculate_matmul_n_times
 
 

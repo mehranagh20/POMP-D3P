@@ -59,6 +59,7 @@ parser.add_argument('--dbas_gmm_iter', type=int, default=100)
 parser.add_argument('--save_dir', type=str, default='.')
 
 parser.add_argument("--wandb_name", default="walker")
+parser.add_argument("--wandb_dir", default="")
 parser.add_argument("--wandb_mode", default="online")
 parser.add_argument(
     "--model_type", default="Naive", help="model Type: Naive | TR | Q |TRQ (default: Naive)"
@@ -368,11 +369,14 @@ torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 os.environ["PYTHONHASHSEED"] = str(args.seed)
 
+wandb_dir = args.wandb_dir
+if wandb_dir == "":
+    wandb_dir = args.save_dir
 wandb.init(
     project=args.project_name,
     name=args.wandb_name,
     config=args,
-    dir=args.save_dir,
+    dir=wandb_dir,
     mode=args.wandb_mode,
 )
 

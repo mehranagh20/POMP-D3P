@@ -18,8 +18,18 @@ def run_dbas(num_iters, init_data, oracle, data_min, data_max, q=0.8, n_componen
             model.fit(data, n_iter=gmm_iter)
             data, _ = model.sample(init_data.shape[0])
             scores = oracle(data).flatten()
+            # filter out nans
+            data = data[~torch.isnan(scores), :]
+            scores = scores[~torch.isnan(scores)]
+            if data.shape[0] == 0:
+                print('dbas: all nans in scores')
+                return init_data
             gamma = torch.quantile(scores, q)
             data = data[scores >= gamma, :]
+            if (data.shape[0] == 0):
+                print(gamma)
+                print(scores)
+
             data = torch.clamp(data, data_min, data_max)
         except Exception as e:
             print('error in dbas at iteration', i, e)

@@ -2,11 +2,11 @@ from dbas.dbas import run_dbas
 import torch
 import time
 
-dbas_iters = 20
+dbas_iters = 50
 dbas_q = 0.9
-dbas_n_components = 5
+dbas_n_components = 10
 dbas_gmm_iter = 100
-num_samples = 5000
+num_samples = 500
 dbas_covariance_type = 'diag'
 low = torch.tensor([-1., -1., -1., -1., -1., -1.]).cuda()
 high = torch.tensor([1., 1., 1., 1., 1., 1.]).cuda()
@@ -14,11 +14,11 @@ high = torch.tensor([1., 1., 1., 1., 1., 1.]).cuda()
 oracle = lambda x: torch.norm(x, dim=1).cuda()
 
 
-num_try = 3
+num_try = 80
 t_sum = 0
 for i in range(num_try):
     start = time.time()
-    actions = torch.rand(num_samples, 6).cuda()
+    actions = torch.rand(num_samples, 6).cuda() * 0.001
     action = run_dbas(dbas_iters, actions, oracle, low, high,
                         q=dbas_q, n_components=dbas_n_components, gmm_iter=dbas_gmm_iter,
                         covariance_type=dbas_covariance_type)

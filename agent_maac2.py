@@ -284,9 +284,12 @@ class Agent(object):
             #     except:
             #         logger.info("Catch exception ddp, fallback to SAC.")
         
-        # oracle = lambda actions: self.critic(states, actions)
+
+        chosen_critic_ind = np.random.choice([i for i in range(self.args.n_critic)])
+        noisy_critic = self.noisy_critics[chosen_critic_ind]
+
         def oracle (actions):
-            q1, q2 = self.critic(states, actions)
+            q1, q2 = noisy_critic(states, actions)
             return (q1 + q2) / 2
         start_time = time.time()
         action = run_dbas(self.args.dbas_iters, actions, oracle, self.policy.action_space_low, self.policy.action_space_high,
@@ -337,8 +340,13 @@ class Agent(object):
         #     if iter is not None:
         #         self.improvements.append((iter, improved.item()))
 
-        num_returned = action.shape[0]
-        action = action[torch.randint(num_returned, (1,))]
+        # num_returned = action.shape[0]
+        # action = action[torch.randint(num_returned, (1,))]
+        # select the action with the highest log probability
+        states = torch.repeat_interleave(state, action.shape[0], dim=0)
+        log_probs = self.policy.log_prob(states, action)
+        ind = torch.argmax(log_probs)
+        action = action[ind]
         if action.shape[0] == 1:
             return action.cpu().numpy()[0]
         return action.cpu().numpy()

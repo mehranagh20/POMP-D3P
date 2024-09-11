@@ -159,6 +159,7 @@ class Agent(object):
             self.device
         )
         hard_update(self.critic_target, self.critic)
+        print('reached 2')
 
         # thompson sampling part
         self.max_num_iters = args.policy_ga_num_iters
@@ -169,7 +170,7 @@ class Agent(object):
             self.noisy_critics = []
             self.noisy_critic_optims = []
             self.noisy_critic_lrschedulers = []
-            self.updated_critics = []
+            self.updated_critics = set(range(args.n_critic))
             for i in range(args.n_critic):
                 noisy_critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size, args.q_layers).to(device=self.device)
                 self.noisy_critics.append(noisy_critic)
@@ -249,6 +250,7 @@ class Agent(object):
         if self.args.epsilon > 0:
             for i in self.updated_critics:
                 self.noisy_critic_lrschedulers[i].step()
+            self.updated_critics = set([])
 
     def get_lr(self):
         return {
@@ -283,6 +285,7 @@ class Agent(object):
 
         num_iters = 0
         if epoch is not None:
+            epoch = epoch - 5
             num_iters = int(self.max_num_iters * (epoch / self.end_increase_epoch))
             num_iters = min(num_iters, self.max_num_iters)
         if num_iters == 0:
@@ -1199,6 +1202,7 @@ class Agent(object):
             next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
 
         chosen_critic_ind = critic_ind
+        self.updated_critics.add(chosen_critic_ind)
         noisy_critic = self.noisy_critics[chosen_critic_ind]
         noisy_critic_optim = self.noisy_critic_optims[chosen_critic_ind]
 

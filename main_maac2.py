@@ -287,6 +287,7 @@ parser.add_argument("--no-ddp", action="store_true", default=False)
 parser.add_argument("--gbp", action="store_true", default=False)
 parser.add_argument("--random-init", action="store_true", default=False)
 args = parser.parse_args()
+print('rached 0')
 # torch.save(args,'args.file')
 results_dir = f"{args.save_dir}/results"
 models_dir = f"{args.save_dir}/models"
@@ -318,6 +319,7 @@ logging.getLogger().addHandler(handler)
 
 logger.info("python {}".format(" ".join(sys.argv)))
 logger.info(args)
+print('rached 1')
 
 def add_metric(metric_dict, args):
     log_dir = f'{args.save_dir}/results'

@@ -50,6 +50,7 @@ parser.add_argument('--policy_ga_end_increase_epoch', type=int, default=100, met
 parser.add_argument('--policy_ga_lr', type=float, default=0.1, metavar='A', help='model checkpoint frequency')
 parser.add_argument('--setting', type=str, default='')
 parser.add_argument('--noisy_critic_efficient', type=int, default=1)
+parser.add_argument('--q_layers', type=int, default=2)
 parser.add_argument('--save_dir', type=str, default='.')
 
 parser.add_argument("--wandb_name", default="walker")

@@ -149,13 +149,13 @@ class Agent(object):
         self.target_update_interval = args.target_update_interval
         self.automatic_entropy_tuning = args.automatic_entropy_tuning
 
-        self.critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(
+        self.critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size, args.q_layers).to(
             device=self.device
         )
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
         self.critic_lrscheduler = get_lrschedule(args, self.critic_optim)
 
-        self.critic_target = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(
+        self.critic_target = QNetwork(num_inputs, action_space.shape[0], args.hidden_size, args.q_layers).to(
             self.device
         )
         hard_update(self.critic_target, self.critic)
@@ -171,7 +171,7 @@ class Agent(object):
             self.noisy_critic_lrschedulers = []
             self.updated_critics = []
             for i in range(args.n_critic):
-                noisy_critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(device=self.device)
+                noisy_critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size, args.q_layers).to(device=self.device)
                 self.noisy_critics.append(noisy_critic)
 
                 noisy_critic_optim = Adam(noisy_critic.parameters(), lr=args.lr)
@@ -311,7 +311,8 @@ class Agent(object):
         # find the best action based on self.critic
         with torch.no_grad():
             q1, q2 = noisy_critic(state, action)
-            ind = torch.argmax(q1 + q2)
+            q1_critic, q2_critic = noisy_critic(state, action)
+            ind = torch.argmax(q1_critic + q2_critic)
             action = action[ind]
 
             actions = self.policy.scale_action(actions)

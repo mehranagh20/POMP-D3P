@@ -1,4 +1,5 @@
 import torch
+import time
 
 from dbas.gmm import GaussianMixture
 
@@ -13,6 +14,8 @@ def run_dbas(num_iters, init_data, oracle, data_min, data_max, q=0.8, n_componen
     var = None
 
     for i in range(num_iters):
+        t = time.time()
+
         try:
             model = GaussianMixture(n_components, d, covariance_type=covariance_type, mu_init=mu, var_init=var).cuda()
             model.fit(data, n_iter=gmm_iter)

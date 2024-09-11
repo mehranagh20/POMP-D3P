@@ -294,9 +294,7 @@ class Agent(object):
         action = torch.tensor(actions, requires_grad=True, device=self.device)
         optim = torch.optim.AdamW([action], lr=self.args.policy_ga_lr, weight_decay=0.01)
 
-        if self.updated_critics == []:
-            self.updated_critics = [i for i in range(self.args.n_critic)]
-        chosen_critic_ind = np.random.choice(self.updated_critics)
+        chosen_critic_ind = np.random.choice(range(self.args.n_critic))
 
         noisy_critic = self.noisy_critics[chosen_critic_ind]
         for i in range(num_iters):
@@ -1222,8 +1220,7 @@ class Agent(object):
         updates,
         use_decay=False,
         weight_decay=0.1,
-        real_ratio=0.05,
-        epsilon=None
+        real_ratio=0.05
     ):
         # Sample a batch from memory   update Q network
         batch_real = int(

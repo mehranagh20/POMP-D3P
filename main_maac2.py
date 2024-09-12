@@ -41,7 +41,7 @@ parser.add_argument("--project_name", default="pomp")
 parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
 parser.add_argument('--noisy_coef', type=float, default=1.0, metavar='G')
 parser.add_argument('--epsilon_decay_end', type=int, default=0, metavar='G')
-parser.add_argument('--noisy_num_updates', type=int, default=1, metavar='G')
+parser.add_argument('--noisy_num_updates', type=int, default=4, metavar='G')
 parser.add_argument('--noisy_num_replace', type=int, default=0, metavar='G')
 parser.add_argument('--noisy_replace_iter', type=int, default=5000, metavar='G')
 parser.add_argument('--n_critic', type=int, default=1, metavar='G', help='0 for policy sample, 1 for policy mean, 2 for random')
@@ -643,29 +643,22 @@ for i_episode in itertools.count(1):
                         ff,
                         gg,
                     ) = agent.update_parameters_q(
-                        memory, memory_fake, args.batch_size, updates_q, real_ratio=args.real_ratio, epsilon=eps
+                        memory, memory_fake, args.batch_size, updates_q, real_ratio=args.real_ratio
                     )
-                    if args.epsilon > 0:
-                        for up in range(args.noisy_num_updates):
-                            critic_ind = torch.randint(0, args.n_critic, (1,)).item()
-                            agent.update_parameters_noisy_q(
-                                memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
-                            )
+                updates_q += 1
 
         if (args.epsilon > 0 and len(memory) >= args.batch_size and len(memory) > args.min_pool_size):
-            for up in range(args.noisy_num_updates):
-                critic_ind = torch.randint(0, args.n_critic, (1,)).item()
-                agent.update_parameters_noisy_q(
-                    memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
-                )
-            updates_q += 1
-
             if (updates_q % args.noisy_replace_iter == 0):
                 for i in range(args.noisy_num_replace):
                     critic_ind = torch.randint(0, args.n_critic, (1,)).item()
                     print(f"replacing {critic_ind}")
                     hard_update(agent.noisy_critics[critic_ind], agent.critic)
 
+            for up in range(args.noisy_num_updates):
+                critic_ind = torch.randint(0, args.n_critic, (1,)).item()
+                agent.update_parameters_noisy_q(
+                    memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
+                )
 
 
         if total_numsteps % 10000 == 0:
@@ -677,7 +670,7 @@ for i_episode in itertools.count(1):
                 with aggregate("inference"):
                     avg_reward = 0.0
                     avg_steps = 0.0
-                    episodes = 3
+                    episodes = 5
                     for _ in range(episodes):
                         episode_reward_e = 0
                         episode_steps_e = 0
@@ -723,7 +716,7 @@ for i_episode in itertools.count(1):
 
             avg_reward = 0.0
             avg_steps = 0.0
-            episodes = 3
+            episodes = 5
             for _ in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0

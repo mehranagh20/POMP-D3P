@@ -22,6 +22,7 @@ import sys
 import json
 import wandb
 from utility import hard_update
+import imageio
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -652,73 +653,53 @@ for i_episode in itertools.count(1):
                 )
 
 
-        if total_numsteps % 10000 == 0:
-            torch.cuda.empty_cache()
-
-        # evaluate
         if total_numsteps % args.see_freq == 0 or total_numsteps == 1:
-            if args.ddp_evaluate:
-                with aggregate("inference"):
-                    avg_reward = 0.0
-                    avg_steps = 0.0
-                    episodes = 10
-                    for _ in range(episodes):
-                        episode_reward_e = 0
-                        episode_steps_e = 0
-                        done_e = False
-                        state_e = env_e.reset()
-                        while not done_e:
-                            action_e = agent.select_action(
-                                state_e,
-                                evaluate=True,
-                                ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
-                            )
-                            episode_steps_e += 1
-                            next_state_e, reward_e, done_e, _ = env_e.step(action_e)  # fix bug
-                            episode_reward_e += reward_e
-                            state_e = next_state_e
-                        avg_reward += episode_reward_e
-                        avg_steps += episode_steps_e
-                    avg_reward /= episodes
-                    avg_steps /= episodes
+            num_tries = 15
 
-
-                    logger.info(
-                        "total_numsteps {}, ddp, avg_reward {}, avg_steps {}". format(
-                            total_numsteps, avg_reward, avg_steps
-                        )
-                    )
-                    wandb.log({"reward": avg_reward, "steps": avg_steps}, step=total_numsteps//args.see_freq)
-
-            try:
-                logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
-                reset_meters("exploration")
-            except:
-                pass
-            try:
-                logger.info("Train {}".format(json.dumps(get_smoothed_values("train"))))
-                reset_meters("train")
-            except:
-                pass
-
-            if flag_model_trained and total_numsteps >= args.ddp_steps and args.ddp_evaluate:
-                logger.info("Inference {}".format(json.dumps(get_smoothed_values("inference"))))
-                reset_meters("inference")
+            torch.cuda.empty_cache()
 
             avg_reward = 0.0
             avg_steps = 0.0
-            episodes = 10
-            for _ in range(episodes):
+            episodes = 2
+            for episode_i in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0
                 done_e = False
                 state_e = env_e.reset()
                 while not done_e:
                     action_e = agent.select_action(state_e, evaluate=True, ddp=False)
-                    episode_steps_e += 1
+                    prev_env_state = env_e.unwrapped.sim.get_state()
+
                     next_state_e, reward_e, done_e, _ = env_e.step(action_e)  # fix bug
+                    state_img = env_e.render(mode="rgb_array")
+                    save_loc = f"{results_dir}/{total_numsteps}/{episode_i}"
+                    # create folder if not exists
+                    if not os.path.exists(save_loc):
+                        os.makedirs(save_loc)
+                    imageio.imsave(f"{save_loc}/{episode_steps_e}.jpeg", state_img)
+
+                    cur_env_state = env_e.unwrapped.sim.get_state()
+                    noisy_z_coords = [next_state_e[0]]
+                    for _ in range(num_tries):
+                        env_e.unwrapped.sim.set_state(prev_env_state)
+                        action_e = agent.select_action(state_e, evaluate=True, ddp=False)
+                        next_state_e2, _, _, _ = env_e.step(action_e)
+                        noisy_z_coords.append(next_state_e2[0])
+                    # save min, max, mean, std of z coords into a json file in the same folder
+                    z_coords_stats = {
+                        "min": min(noisy_z_coords),
+                        "max": max(noisy_z_coords),
+                        "mean": np.mean(noisy_z_coords),
+                        "std": np.std(noisy_z_coords),
+                    }
+                    with open(f"{save_loc}/stats.json", "w") as f:
+                        json.dump(z_coords_stats, f)
+
+
                     episode_reward_e += reward_e
                     state_e = next_state_e
+                    env_e.unwrapped.sim.set_state(cur_env_state)
+                    episode_steps_e += 1
                 avg_reward += episode_reward_e
                 avg_steps += episode_steps_e
             avg_reward /= episodes
@@ -727,8 +708,8 @@ for i_episode in itertools.count(1):
 
             avg_reward_nosy = 0.0
             avg_steps_nosy = 0.0
-            episodes = 1
-            for _ in range(episodes):
+            episodes = 2
+            for episode_i in range(episodes):
                 episode_reward_e = 0
                 episode_steps_e = 0
                 done_e = False
@@ -740,10 +721,46 @@ for i_episode in itertools.count(1):
                         ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
                         noisy=True,
                     )
-                    episode_steps_e += 1
+
+                    prev_env_state = env_e.unwrapped.sim.get_state()
+
                     next_state_e, reward_e, done_e, _ = env_e.step(action_e)
+
+                    state_img = env_e.render(mode="rgb_array")
+                    save_loc = f"{results_dir}/{total_numsteps}/{episode_i}"
+                    # create folder if not exists
+                    if not os.path.exists(save_loc):
+                        os.makedirs(save_loc)
+                    imageio.imsave(f"{save_loc}/noisy_{episode_steps_e}.jpeg", state_img)
+                    
+
+                    cur_env_state = env_e.unwrapped.sim.get_state()
+                    noisy_z_coords = [next_state_e[0]]
+                    for _ in range(num_tries):
+                        env_e.unwrapped.sim.set_state(prev_env_state)
+                        action_e = agent.select_action(
+                            state_e,
+                            evaluate=False,
+                            ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
+                            noisy=True,
+                        )
+                        next_state_e2, _, _, _ = env_e.step(action_e)
+                        noisy_z_coords.append(next_state_e2[0])
+                    # save min, max, mean, std of z coords into a json file in the same folder
+                    z_coords_stats = {
+                        "min": min(noisy_z_coords),
+                        "max": max(noisy_z_coords),
+                        "mean": np.mean(noisy_z_coords),
+                        "std": np.std(noisy_z_coords),
+                    }
+                    with open(f"{save_loc}/noisy_stats.json", "w") as f:
+                        json.dump(z_coords_stats, f)
+
                     episode_reward_e += reward_e
                     state_e = next_state_e
+                    env_e.unwrapped.sim.set_state(cur_env_state)
+                    episode_steps_e += 1
+
                 avg_reward_nosy += episode_reward_e
                 avg_steps_nosy += episode_steps_e
             avg_reward_nosy /= episodes

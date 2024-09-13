@@ -314,7 +314,7 @@ class Agent(object):
         # find the best action based on self.critic
         with torch.no_grad():
             q1, q2 = noisy_critic(state, action)
-            q1_critic, q2_critic = noisy_critic(state, action)
+            q1_critic, q2_critic = self.critic(state, action)
             ind = torch.argmax(q1_critic + q2_critic)
             action = action[ind]
 

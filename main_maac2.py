@@ -510,6 +510,8 @@ epoch_step = -1
 epoch_length = args.epoch_length
 rollout_length = 1
 num_noisy_updates = 0
+start_time = time.time()
+
 for i_episode in itertools.count(1):
 
     episode_reward = 0
@@ -518,6 +520,31 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
+        if total_numsteps % 100 == 0 and total_numsteps != 0:
+            elapsed_time = time.time() - start_time
+            logger.info(f"Speed: {elapsed_time} seconds for 100 iterations")
+            
+            # Save the speed in a JSON file
+            speed_data = {
+                "total_numsteps": total_numsteps,
+                "elapsed_time": elapsed_time
+            }
+            speed_file_name = os.path.join(args.save_dir, 'speed.json')
+            if os.path.exists(speed_file_name):
+                with open(speed_file_name, 'r') as f:
+                    speed_log = json.load(f)
+            else:
+                speed_log = []
+
+            speed_log.append(speed_data)
+
+            with open(speed_file_name, 'w') as f:
+                json.dump(speed_log, f, indent=4)
+
+            # Reset the start time
+            start_time = time.time()
+
+
         noisy = False
         if total_numsteps % epoch_length == 0:
             epoch_step += 1

@@ -174,7 +174,7 @@ class Agent(object):
             self.noisy_critic_lrschedulers = []
             self.updated_critics = []
             for i in range(args.n_critic):
-                noisy_critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(device=self.device)
+                noisy_critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size, args.num_layers).to(device=self.device)
                 self.noisy_critics.append(noisy_critic)
 
                 noisy_critic_optim = Adam(noisy_critic.parameters(), lr=args.lr)

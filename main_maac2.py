@@ -37,6 +37,7 @@ import env
 parser = argparse.ArgumentParser(description="PyTorch agent")
 #### model type
 parser.add_argument("--project_name", default="pomp")
+parser.add_argument('--num_layers', type=int, default=2, metavar='G')
 
 parser.add_argument('--epsilon', type=float, default=0.0, metavar='G')
 parser.add_argument('--noisy_coef', type=float, default=1.0, metavar='G')

@@ -14,17 +14,20 @@ noisy_coef=1.0
 efficent=1
 
 # for seed in 1 2 3 4 6 7 8; do
-for seed in 7; do
+for seed in 1 2 3; do
     name=eps${eps}-ga_lr${ga_lr}-iter${iter}-n_critic${n_critic}-end_iter${end_iter}-eps_decay_end${eps_decay_end}-noisy${noisy_coef}-eff${efficent}-seed${seed}
     setting=eps${eps}-ga_lr${ga_lr}-iter${iter}-n_critic${n_critic}-end_iter${end_iter}-eps_decay_end${eps_decay_end}-noisy${noisy_coef}-eff${efficent}
     project_name=half-best
-    save_dir=/home/mehran/sfu/projects/rl/POMP-D3P/results/$project_name
+    save_dir=/home/mehran/sfu/res/saved_models/RL/$project_name
     mkdir -p ${save_dir}/${name}
     save_log_file=${save_dir}/${name}/out.log
+    speed_dir=${save_dir}/speed
+    mkdir -p ${speed_dir}
     python main_maac2.py --exploration_init --cuda --save_result --save_model \
                 --automatic_entropy_tuning True --see_freq 1000 \
-                --env-name HalfCheetah-v2 --num_steps 250000 \
+                --env-name HalfCheetah-v2 --num_steps 20000 \
                 --start_steps 5000 --save_model_interval 1000 \
+                --speed_dir ${speed_dir} \
                 --model_type Naive --weight_grad 10 \
                 --batch_size_pmp 256 --lr 3e-4 \
                 --update_policy_times 10 --updates_per_step 10 \

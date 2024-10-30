@@ -151,13 +151,13 @@ class Agent(object):
         self.target_update_interval = args.target_update_interval
         self.automatic_entropy_tuning = args.automatic_entropy_tuning
 
-        self.critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(
+        self.critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size, args.num_layers).to(
             device=self.device
         )
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
         self.critic_lrscheduler = get_lrschedule(args, self.critic_optim)
 
-        self.critic_target = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(
+        self.critic_target = QNetwork(num_inputs, action_space.shape[0], args.hidden_size, args.num_layers).to(
             self.device
         )
         hard_update(self.critic_target, self.critic)

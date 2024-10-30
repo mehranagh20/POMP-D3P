@@ -57,6 +57,7 @@ parser.add_argument('--dbas_n_components', type=int, default=10)
 parser.add_argument('--dbas_covariance_type', type=str, default='full')
 parser.add_argument('--dbas_gmm_iter', type=int, default=100)
 parser.add_argument('--save_dir', type=str, default='.')
+parser.add_argument('--speed_dir', type=str, default='.')
 
 parser.add_argument("--wandb_name", default="walker")
 parser.add_argument("--wandb_dir", default="")
@@ -527,19 +528,25 @@ for i_episode in itertools.count(1):
             # Save the speed in a JSON file
             speed_data = {
                 "total_numsteps": total_numsteps,
-                "elapsed_time": elapsed_time
+                "elapsed_time": elapsed_time,
             }
-            speed_file_name = os.path.join(args.save_dir, 'speed.json')
+            speed_file_name = os.path.join(args.speed_dir, 'speed.json')
             if os.path.exists(speed_file_name):
                 with open(speed_file_name, 'r') as f:
-                    speed_log = json.load(f)
+                    speed_dict = json.load(f)
+                    speed_log = speed_dict["logs"]
             else:
-                speed_log = []
+                speed_dict = {"logs": [], "avg": 0.0}
+                speed_log = speed_dict["logs"]
 
             speed_log.append(speed_data)
+            
+            # Calculate average elapsed time
+            total_time = sum(log["elapsed_time"] for log in speed_log)
+            speed_dict["avg"] = total_time / len(speed_log)
 
             with open(speed_file_name, 'w') as f:
-                json.dump(speed_log, f, indent=4)
+                json.dump(speed_dict, f, indent=4)
 
             # Reset the start time
             start_time = time.time()

@@ -526,28 +526,31 @@ for i_episode in itertools.count(1):
             elapsed_time = time.time() - start_time
             logger.info(f"Speed: {elapsed_time} seconds for 100 iterations")
             
-            # Save the speed in a JSON file
-            speed_data = {
-                "total_numsteps": total_numsteps,
-                "elapsed_time": elapsed_time,
-            }
-            speed_file_name = os.path.join(args.speed_dir, 'speed.json')
-            if os.path.exists(speed_file_name):
-                with open(speed_file_name, 'r') as f:
-                    speed_dict = json.load(f)
+            try:
+                # Save the speed in a JSON file
+                speed_data = {
+                    "total_numsteps": total_numsteps,
+                    "elapsed_time": elapsed_time,
+                }
+                speed_file_name = os.path.join(args.speed_dir, 'speed.json')
+                if os.path.exists(speed_file_name):
+                    with open(speed_file_name, 'r') as f:
+                        speed_dict = json.load(f)
+                        speed_log = speed_dict["logs"]
+                else:
+                    speed_dict = {"logs": [], "avg": 0.0}
                     speed_log = speed_dict["logs"]
-            else:
-                speed_dict = {"logs": [], "avg": 0.0}
-                speed_log = speed_dict["logs"]
 
-            speed_log.append(speed_data)
-            
-            # Calculate average elapsed time
-            total_time = sum(log["elapsed_time"] for log in speed_log)
-            speed_dict["avg"] = total_time / len(speed_log)
+                speed_log.append(speed_data)
+                
+                # Calculate average elapsed time
+                total_time = sum(log["elapsed_time"] for log in speed_log)
+                speed_dict["avg"] = total_time / len(speed_log)
 
-            with open(speed_file_name, 'w') as f:
-                json.dump(speed_dict, f, indent=4)
+                with open(speed_file_name, 'w') as f:
+                    json.dump(speed_dict, f, indent=4)
+            except:
+                pass
 
             # Reset the start time
             start_time = time.time()

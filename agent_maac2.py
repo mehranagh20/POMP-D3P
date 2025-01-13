@@ -1157,8 +1157,7 @@ class Agent(object):
         critic_ind,
         use_decay=False,
         weight_decay=0.1,
-        real_ratio=0.05,
-        epsilon=None,
+        real_ratio=0.05
     ):
         # Sample a batch from memory   update Q network
         batch_real = int(

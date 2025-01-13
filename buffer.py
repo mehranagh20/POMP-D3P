@@ -61,9 +61,18 @@ class ReplayMemory:
 
     def return_all(self):
         return self.buffer
-
+    
+    def return_all_tuple(self):
+        state, action, reward, next_state, mask, done = map(np.stack, zip(*self.buffer))
+        return state, action, reward, next_state, mask, done
+    
     def __len__(self):
         return len(self.buffer)
+
+    def reset(self, new_capacity):
+        self.buffer = []
+        self.position = 0
+        self.capacity = new_capacity
 
 
 class ReplayMemory_without_mask:
@@ -118,3 +127,4 @@ class ReplayMemory_without_mask:
 
     def __len__(self):
         return len(self.buffer)
+

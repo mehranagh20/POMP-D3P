@@ -557,7 +557,8 @@ class EnsembleEnv:
         return s_0, a_0, s_H, a_H, reward_rollout, len_rollout
 
     def update(self, env_pool, batch_size, weight_grad=0, near_n=5):
-        state, action, reward, next_state, mask, done = env_pool.sample(len(env_pool))
+        # state, action, reward, next_state, mask, done = env_pool.sample(len(env_pool))
+        state, action, reward, next_state, mask, done = env_pool.return_all_tuple()
         delta_state = next_state - state
         inputs = np.concatenate((state, action), axis=-1)
         labels = np.concatenate((np.reshape(reward, (reward.shape[0], -1)), delta_state), axis=-1)

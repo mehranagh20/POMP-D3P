@@ -29,9 +29,6 @@ def run_dbas(num_iters, init_data, oracle, data_min, data_max, q=0.8, n_componen
                 return init_data
             gamma = torch.quantile(scores, q)
             data = data[scores >= gamma, :]
-            if (data.shape[0] == 0):
-                print(gamma)
-                print(scores)
 
             data = torch.clamp(data, data_min, data_max)
         except Exception as e:

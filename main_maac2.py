@@ -93,7 +93,7 @@ parser.add_argument(
 parser.add_argument(
     "--automatic_entropy_tuning",
     type=bool,
-    default=False,
+    default=True,
     metavar="G",
     help="Automaically adjust α (default: False)",
 )
@@ -117,6 +117,7 @@ parser.add_argument(
     "--target_update_interval",
     type=int,
     default=1,
+
     metavar="N",
     help="Value target update per no. of updates per step (default: 1)",
 )
@@ -226,7 +227,7 @@ parser.add_argument(
     help="Steps sampling random actions (default: 5000)",
 )
 parser.add_argument(
-    "--min_pool_size", type=int, default=5000, metavar="A", help="minimum pool size"
+    "--min_pool_size", type=int, default=250, metavar="A", help="minimum pool size"
 )  ## start update use model or fake data
 parser.add_argument(
     "--real_ratio",
@@ -284,6 +285,9 @@ parser.add_argument("--ddp_evaluate", action="store_true", default=False)
 parser.add_argument("--lr-schedule", action="store_true", default=False)
 parser.add_argument("--learnq-ddp", action="store_true", default=False)
 parser.add_argument("--learnq-num", type=int, default=8)
+parser.add_argument("--real_step_freq", type=int, default=1)
+parser.add_argument("--evaluate_freq", type=int, default=1000)
+parser.add_argument("--no_ddp", type=int, default=0)
 
 parser.add_argument("--penalize-var", action="store_true", default=False)
 parser.add_argument("--penalty-coeff", type=float, default=1.0)
@@ -379,6 +383,8 @@ wandb.init(
     dir=wandb_dir,
     mode=args.wandb_mode,
 )
+wandb.run.log_code()
+
 
 
 ##############################
@@ -496,6 +502,7 @@ memory_fake = ReplayMemory(
 updates_q = 0
 updates_q_like_sac = 0
 total_numsteps = 0
+real_numsteps = 0
 updates = 0
 num_episodes = 0
 
@@ -518,63 +525,47 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
-        noisy = False
-        if total_numsteps % epoch_length == 0:
-            epoch_step += 1
+        if total_numsteps % args.real_step_freq == 0:
+            noisy = False
+            if total_numsteps % epoch_length == 0:
+                epoch_step += 1
 
-        if args.exploration_init and (args.start_steps > total_numsteps):
-            action = env.action_space.sample()
-        else:
-            eps = args.epsilon
-            if args.epsilon_decay_end != 0:
-                eps = eps - total_numsteps * (eps / args.epsilon_decay_end)
+            if args.exploration_init and (args.start_steps > total_numsteps):
+                action = env.action_space.sample()
+            else:
+                eps = args.epsilon
+                if args.epsilon_decay_end != 0:
+                    eps = eps - total_numsteps * (eps / args.epsilon_decay_end)
 
-            noisy = np.random.rand() < eps
-            with aggregate("exploration"):
-                action = agent.select_action(
-                    state,
-                    evaluate=False,
-                    ddp=flag_model_trained and total_numsteps >= args.ddp_steps and not args.no_ddp,
-                    init_action=env.action_space.sample() if args.random_init else None,
-                    noisy=noisy,
-                    epoch=epoch_step,
-                    iter=total_numsteps,
-                )  ##evaluate=False is better
+                noisy = np.random.rand() < eps
+                with aggregate("exploration"):
+                    action = agent.select_action(
+                        state,
+                        evaluate=False,
+                        ddp=flag_model_trained and total_numsteps >= args.ddp_steps and not args.no_ddp,
+                        init_action=env.action_space.sample() if args.random_init else None,
+                        noisy=noisy,
+                        epoch=epoch_step,
+                        iter=total_numsteps,
+                    )  ##evaluate=False is better
 
-        num_noisy_updates += noisy
+            num_noisy_updates += noisy
 
 
-        next_state, reward, done, _ = env.step(action)
-        episode_steps += 1
-        total_numsteps += 1
-        episode_reward += reward
-        # Ignore the "done" signal if it comes from hitting the time horizon.
-        mask = 1 if episode_steps == env._max_episode_steps else float(not done)
-        # mask = float(not done)
-        memory.push(state, action, reward, next_state, mask, done)
-        # memory_fake.push(state, action, reward, next_state, mask, done) # run this line in invertpendulum
-        if done:
-            num_episodes += 1
-        state = next_state
+            next_state, reward, done, _ = env.step(action)
+            episode_steps += 1
+            episode_reward += reward
+            # Ignore the "done" signal if it comes from hitting the time horizon.
+            mask = 1 if episode_steps == env._max_episode_steps else float(not done)
+            # mask = float(not done)
+            memory.push(state, action, reward, next_state, mask, done)
+            # memory_fake.push(state, action, reward, next_state, mask, done) # run this line in invertpendulum
+            if done:
+                num_episodes += 1
+            state = next_state
 
-        #### train q and policy before model learned
-        if (
-            len(memory) >= args.batch_size
-            and total_numsteps < args.min_pool_size
-            and args.efficient
-        ):
-            for i in range(1):
-                logger.info('updating')
-                # for i in range(args.updates_per_step):
-                # Update q
-                (
-                    critic_1_loss,
-                    critic_2_loss,
-                    policy_loss,
-                    ent_loss,
-                    alpha,
-                ) = agent.update_parameters_like_sac(memory, args.batch_size, updates_q_like_sac)
-                updates_q_like_sac += 1
+            real_numsteps += 1
+
 
         ### train model ####
         # flag_model_trained =True
@@ -592,14 +583,16 @@ for i_episode in itertools.count(1):
             agent.model_ensemble.trained = True
 
             new_rollout_length = set_rollout_length(args, epoch_step)
-            if rollout_length != new_rollout_length:
-                rollout_length = new_rollout_length
-                memory_fake = resize_model_pool(args, rollout_length, memory_fake)
+            # if rollout_length != new_rollout_length:
+            #     rollout_length = new_rollout_length
+            #     memory_fake = resize_model_pool(args, rollout_length, memory_fake)
+            bc = args.rollout_batch_size if args.rollout_batch_size != -1 else len(memory.buffer)
+            memory_fake.reset(new_rollout_length * bc)
                 # print(len(memory_fake))
 
             # memory_fake = agent.rollout_for_update_q(memory, memory_fake, rollout_length, args.rollout_batch_size)
             rollout_for_update_q(
-                agent, memory, memory_fake, rollout_length, args.rollout_batch_size
+                agent, memory, memory_fake, rollout_length, bc
             )
 
         # ### train policy ###
@@ -657,63 +650,10 @@ for i_episode in itertools.count(1):
             for up in range(args.noisy_num_updates):
                 critic_ind = torch.randint(0, args.n_critic, (1,)).item()
                 agent.update_parameters_noisy_q(
-                    memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio, epsilon=eps
+                    memory, memory_fake, args.batch_size, updates_q, critic_ind, real_ratio=args.real_ratio
                 )
 
-
-        if total_numsteps % 10000 == 0:
-            torch.cuda.empty_cache()
-
-        # evaluate
-        if total_numsteps % args.see_freq == 0 or total_numsteps == 1:
-            if args.ddp_evaluate:
-                with aggregate("inference"):
-                    avg_reward = 0.0
-                    avg_steps = 0.0
-                    episodes = 5
-                    for _ in range(episodes):
-                        episode_reward_e = 0
-                        episode_steps_e = 0
-                        done_e = False
-                        state_e = env_e.reset()
-                        while not done_e:
-                            action_e = agent.select_action(
-                                state_e,
-                                evaluate=True,
-                                ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
-                            )
-                            episode_steps_e += 1
-                            next_state_e, reward_e, done_e, _ = env_e.step(action_e)  # fix bug
-                            episode_reward_e += reward_e
-                            state_e = next_state_e
-                        avg_reward += episode_reward_e
-                        avg_steps += episode_steps_e
-                    avg_reward /= episodes
-                    avg_steps /= episodes
-
-
-                    logger.info(
-                        "total_numsteps {}, ddp, avg_reward {}, avg_steps {}". format(
-                            total_numsteps, avg_reward, avg_steps
-                        )
-                    )
-                    wandb.log({"ddp_reward": avg_reward, "ddp_steps": avg_steps}, step=total_numsteps//args.see_freq)
-
-            try:
-                logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
-                reset_meters("exploration")
-            except:
-                pass
-            try:
-                logger.info("Train {}".format(json.dumps(get_smoothed_values("train"))))
-                reset_meters("train")
-            except:
-                pass
-
-            if flag_model_trained and total_numsteps >= args.ddp_steps and args.ddp_evaluate:
-                logger.info("Inference {}".format(json.dumps(get_smoothed_values("inference"))))
-                reset_meters("inference")
-
+        if real_numsteps % args.evaluate_freq == 0:
             avg_reward = 0.0
             avg_steps = 0.0
             episodes = 10
@@ -734,31 +674,6 @@ for i_episode in itertools.count(1):
             avg_steps /= episodes
 
 
-            avg_reward_nosy = 0.0
-            avg_steps_nosy = 0.0
-            episodes = 1
-            for _ in range(episodes):
-                episode_reward_e = 0
-                episode_steps_e = 0
-                done_e = False
-                state_e = env_e.reset()
-                while not done_e:
-                    action_e = agent.select_action(
-                        state_e,
-                        evaluate=True,
-                        ddp=flag_model_trained and total_numsteps >= args.ddp_steps,
-                        noisy=True,
-                    )
-                    episode_steps_e += 1
-                    next_state_e, reward_e, done_e, _ = env_e.step(action_e)
-                    episode_reward_e += reward_e
-                    state_e = next_state_e
-                avg_reward_nosy += episode_reward_e
-                avg_steps_nosy += episode_steps_e
-            avg_reward_nosy /= episodes
-            avg_steps_nosy /= episodes
-
-
             reward_save.append([total_numsteps, avg_reward])
             # print(total_numsteps, avg_reward, avg_steps)
             logger.info(
@@ -766,19 +681,33 @@ for i_episode in itertools.count(1):
                     total_numsteps, avg_reward, avg_steps
                 )
             )
-            metric = {"reward": avg_reward, "steps": avg_steps, "noisy_reward": avg_reward_nosy, "noisy_steps": avg_steps_nosy, "num_noisy_updates": num_noisy_updates}
+            metric = {"reward": avg_reward, "steps": avg_steps, "num_noisy_updates": num_noisy_updates, "real_numsteps": real_numsteps}
             num_noisy_updates = 0
             wandb.log(metric, step=total_numsteps//args.see_freq)
             add_metric(metric, args)
 
-            for ep, improv in agent.improvements:
-                wandb.log({"improvement": improv, "iteration": ep, "iterfreq": ep//args.see_freq}, step=total_numsteps//args.see_freq)
-            agent.improvements = []
 
-            for ep, t in agent.times:
-                if ep is not None:
-                    wandb.log({"time": t, "iteration": ep, "iterfreq": ep//args.see_freq}, step=total_numsteps//args.see_freq)
-            agent.times = []
+        if total_numsteps % 10000 == 0:
+            torch.cuda.empty_cache()
+
+
+            try:
+                logger.info("Exploration {}".format(json.dumps(get_smoothed_values("exploration"))))
+                reset_meters("exploration")
+            except:
+                pass
+            try:
+                logger.info("Train {}".format(json.dumps(get_smoothed_values("train"))))
+                reset_meters("train")
+            except:
+                pass
+
+            if flag_model_trained and total_numsteps >= args.ddp_steps and args.ddp_evaluate:
+                logger.info("Inference {}".format(json.dumps(get_smoothed_values("inference"))))
+                reset_meters("inference")
+
+
+        total_numsteps += 1
 
             
 
@@ -797,7 +726,7 @@ for i_episode in itertools.count(1):
         agent.step_lrscheduler()
 
     logger.info(f"Episode {i_episode} return {episode_reward} step {episode_steps}")
-    if total_numsteps > args.num_steps:
+    if real_numsteps > args.num_steps:
         break
     # if num_updates_pmp > args.num_updates:
     #     break
